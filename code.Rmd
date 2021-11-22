@@ -1,0 +1,42 @@
+---
+output: pdf_document
+---
+
+```{r}
+
+library(readr)
+library(ggplot2)
+
+```
+
+
+```{r}
+
+# read in data
+re <- read_csv("./realEstate.csv")
+
+# get rid of useless columns
+re <- re[,c(-(1:3),-7,-12,-18,-27,-29,-(31:68))]
+
+# remove observations with missing data
+re <- na.omit(re)
+
+```
+
+# Subsets
+
+```{r}
+
+ca <- re[re$State == "CA",]
+co <- re[re$State == "CO",]
+den <- re[re$City == "Denver",]
+
+```
+
+
+
+# Code for Appendix (if needed)
+
+```{r show-code, ref.label = all_labels(), echo = TRUE, eval = FALSE}
+
+```
