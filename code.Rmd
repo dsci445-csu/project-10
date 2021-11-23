@@ -9,14 +9,13 @@ library(ggplot2)
 
 ```
 
-
 ```{r}
 
 # read in data
 re <- read_csv("./realEstate.csv")
 
 # get rid of useless columns
-re <- re[,c(-(1:3),-7,-12,-18,-27,-29,-(31:68))]
+re <- re[,c(-(1:4),-7,-12,-18,-(27:29),-(31:68))]
 
 # remove observations with missing data
 re <- na.omit(re)
@@ -27,15 +26,22 @@ re <- na.omit(re)
 
 ```{r}
 
+# homes in Colorado, California, Denver, 80219
+
 ca <- re[re$State == "CA",]
 co <- re[re$State == "CO",]
 den <- re[re$City == "Denver",]
+zip80219 <- re[re$Zipcode == 80219,]
+
+#unique(ca$Zipcode)
+#unique(co$Zipcode)
+#unique(den$Zipcode)
 
 ```
 
 
 
-# Code for Appendix (if needed)
+# Code for Appendix (if needed for slides and stuff)
 
 ```{r show-code, ref.label = all_labels(), echo = TRUE, eval = FALSE}
 
