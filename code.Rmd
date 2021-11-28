@@ -42,6 +42,12 @@ for (i in 1:length(re$LotSize)) {
   }
 }
 
+re$Bath <- as.factor(re$Bath)
+re$Beds <- as.factor(re$Beds)
+re$YearBuilt <- as.factor(re$YearBuilt)
+re$LastSoldYear <- as.factor(re$LastSoldYear)
+re$LastTaxYear <- as.factor(re$LastTaxYear)
+
 re$LastSoldFor <- parse_number(re$LastSoldFor)
 re$LastTaxAssestment <- parse_number(re$LastTaxAssestment)
 re$PriceSqrFt <- parse_number(re$PriceSqrFt)
@@ -61,6 +67,8 @@ zip80219 <- re[re$Zipcode == 80219,]
 #unique(ca$Zipcode)
 #unique(co$Zipcode)
 #unique(den$Zipcode)
+#unique(re$city)
+#unique(re$State)
 
 ```
 
