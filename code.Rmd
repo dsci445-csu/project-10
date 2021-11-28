@@ -15,10 +15,36 @@ library(ggplot2)
 re <- read_csv("./realEstate.csv")
 
 # get rid of useless columns
-re <- re[,c(-(1:4),-7,-12,-18,-(27:29),-(31:68))]
+re <- re[,c(-(1:4),-7,-8,-12,-18,-(27:29),-(31:68))]
 
 # remove observations with missing data
 re <- na.omit(re)
+
+# make better names
+names(re) <- gsub(" ","", names(re))
+
+# remove unit labels and dollar signs
+re$Price <- parse_number(re$Price)
+re$SqrFt <- parse_number(re$SqrFt)
+
+inSqft <- rep(NA,length(re$LotSize))
+for (i in 1:length(re$LotSize)) {
+  if (grepl("sqft",re$LotSize[i],fixed=TRUE)) {
+    inSqft[i] <- TRUE
+  } else {
+    inSqft[i] <- FALSE
+  }
+}
+re$LotSize <- parse_number(re$LotSize)
+for (i in 1:length(re$LotSize)) {
+  if (inSqft[i]) {
+    re$LotSize[i] <- re$LotSize[i]*(1/43560)
+  }
+}
+
+re$LastSoldFor <- parse_number(re$LastSoldFor)
+re$LastTaxAssestment <- parse_number(re$LastTaxAssestment)
+re$PriceSqrFt <- parse_number(re$PriceSqrFt)
 
 ```
 
@@ -27,7 +53,6 @@ re <- na.omit(re)
 ```{r}
 
 # homes in Colorado, California, Denver, 80219
-
 ca <- re[re$State == "CA",]
 co <- re[re$State == "CO",]
 den <- re[re$City == "Denver",]
