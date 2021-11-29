@@ -51,24 +51,6 @@ re$PriceSqrFt <- parse_number(re$PriceSqrFt)
 
 ```
 
-# Potential Subsets
-
-```{r}
-
-# homes in Colorado, California, Denver, 80219
-ca <- re[re$State == "CA",]
-co <- re[re$State == "CO",]
-den <- re[re$City == "Denver",]
-zip80219 <- re[re$Zipcode == 80219,]
-
-#unique(ca$Zipcode)
-#unique(co$Zipcode)
-#unique(den$Zipcode)
-#unique(re$city)
-#unique(re$State)
-
-```
-
 # Visualize Relationships
 
 ```{r}
@@ -78,15 +60,15 @@ zip80219 <- re[re$Zipcode == 80219,]
 ggplot(data=re,aes(x=SqrFt,y=Price)) +
   geom_point()
 
-ggplot(data=re[-9907,],aes(x=SqrFt,y=Price)) +
+ggplot(data=re[-9907,],aes(x=SqrFt^(1/2),y=log(Price))) +
   geom_point()
 
 # Longitude and Latitude
 
-ggplot(data=re,aes(x=Longitude,y=Price)) +
+ggplot(data=re,aes(x=Longitude,y=log(Price))) +
   geom_point()
 
-ggplot(data=re,aes(x=Latitude,y=Price)) +
+ggplot(data=re,aes(x=Latitude,y=log(Price))) +
   geom_point()
 
 # Lot Size (acres)
@@ -94,59 +76,97 @@ ggplot(data=re,aes(x=Latitude,y=Price)) +
 ggplot(data=re,aes(x=LotSize,y=Price)) +
   geom_point()
 
-ggplot(data=re[c(-8769,-7483),],aes(x=LotSize,y=Price)) +
+ggplot(data=re[c(-8769,-7483),],aes(x=log(LotSize),y=log(Price))) +
   geom_point()
 
 # Beds and Baths
 
 ggplot(data=re,aes(x=Beds,y=Price)) +
-  geom_point()
+  geom_boxplot()
 
 ggplot(data=re,aes(x=Bath,y=Price)) +
-  geom_point()
+  geom_boxplot()
 
 # Year Built
 
-ggplot(data=re,aes(x=YearBuilt,y=Price)) +
+ggplot(data=re,aes(x=YearBuilt,y=log(Price))) +
   geom_point()
 
 # Price Square Ft.
 
-ggplot(data=re,aes(x=PriceSqrFt,y=Price)) +
-  geom_point()
-
-ggplot(data=re[c(-8025,-3089,-5990),],aes(x=PriceSqrFt,y=Price)) +
-  geom_point()
+# ggplot(data=re,aes(x=PriceSqrFt,y=Price)) + geom_point()
 
 # Last Sold Year
 
-ggplot(data=re,aes(x=LastSoldYear,y=Price)) +
-  geom_point()
+# ggplot(data=re,aes(x=LastSoldYear,y=log(Price))) + geom_point()
 
 # Last Sold For
 
-ggplot(data=re,aes(x=LastSoldFor,y=Price)) +
+ggplot(data=re,aes(x=log(LastSoldFor),y=log(Price))) +
   geom_point()
 
 # Last Tax Assestment
 
-ggplot(data=re,aes(x=LastTaxAssestment,y=Price)) +
+ggplot(data=re,aes(x=log(LastTaxAssestment),y=log(Price))) +
   geom_point()
 
 # Last Tax Year
 
-ggplot(data=re,aes(x=LastTaxYear,y=Price)) +
+# ggplot(data=re,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# City
+
+ggplot(data=re,aes(x=City,y=Price)) +
+  geom_boxplot()
+
+# State
+
+ggplot(data=re,aes(x=State,y=Price)) +
+  geom_boxplot()
+
+# Zip
+
+# ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Days On Trulia
+
+ggplot(data=re,aes(x=DaysOnTrulia,y=log(Price))) +
   geom_point()
 
 ```
 
-# Transformations
+Consider not using PriceSqrFt because I'm pretty sure it's calculated directly from Price and SqrFt, and we already have that information.
+
+Last Sold Year and Last Tax Year don't have a relationship with log price, which makes quite a bit of sense because house sales and taxes just happen.
+
+Ditto for Days on Trulia.
+
+# Transformations for Linear Models
 
 ```{r}
 
+# Remove PriceSqFt, Last Sold Year, Last Tax Year, Days on Trulia
+
+ret <- re[,c(-1,-11,-14,-15,-19)]
+
 # Transformations
 
+ret$Price <- log(re$Price)
+ret$SqrFt <- sqrt(re$SqrFt)
+ret$LotSize <- log(re$LotSize)
+ret$LastSoldFor <- log(re$LastSoldFor)
+ret$LastTaxAssestment <- log(re$LastTaxAssestment)
 
+```
+
+# Potential Subsets of Transformed Data
+
+```{r}
+
+# homes in Colorado, California, Denver, 80219
+ca_t <- re[ret$State == "CA",]
+co_t <- re[ret$State == "CO",]
+den_t <- re[ret$City == "Denver",]
 
 ```
 
