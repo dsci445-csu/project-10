@@ -1,0 +1,24 @@
+---
+title: "Housing Price Prediction from Trulia.com Data"
+author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
+date: "12/06/21"
+output: slidy_presentation
+---
+
+```{r, include=FALSE}
+
+library(ggplot2)
+
+```
+
+## Slide 1
+
+```{r, echo=FALSE}
+
+ggplot()
+
+```
+
+## Slide 2
+
+
