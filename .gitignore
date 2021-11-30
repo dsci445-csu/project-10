@@ -1,5 +1,6 @@
 # knitr output
 *.html
+*.pdf
 
 # History files
 .Rhistory

@@ -57,10 +57,7 @@ re$PriceSqrFt <- parse_number(re$PriceSqrFt)
 
 # Square Ft.
 
-ggplot(data=re,aes(x=SqrFt,y=Price)) +
-  geom_point()
-
-ggplot(data=re[-9907,],aes(x=SqrFt^(1/2),y=log(Price))) +
+ggplot(data=re,aes(x=SqrFt^(1/4),y=log(Price))) +
   geom_point()
 
 # Longitude and Latitude
@@ -73,18 +70,15 @@ ggplot(data=re,aes(x=Latitude,y=log(Price))) +
 
 # Lot Size (acres)
 
-ggplot(data=re,aes(x=LotSize,y=Price)) +
-  geom_point()
-
-ggplot(data=re[c(-8769,-7483),],aes(x=log(LotSize),y=log(Price))) +
+ggplot(data=re,aes(x=log(LotSize),y=log(Price))) +
   geom_point()
 
 # Beds and Baths
 
-ggplot(data=re,aes(x=Beds,y=Price)) +
+ggplot(data=re,aes(x=Beds,y=log(Price))) +
   geom_boxplot()
 
-ggplot(data=re,aes(x=Bath,y=Price)) +
+ggplot(data=re,aes(x=Bath,y=log(Price))) +
   geom_boxplot()
 
 # Year Built
@@ -116,12 +110,12 @@ ggplot(data=re,aes(x=log(LastTaxAssestment),y=log(Price))) +
 
 # City
 
-ggplot(data=re,aes(x=City,y=Price)) +
+ggplot(data=re,aes(x=City,y=log(Price))) +
   geom_boxplot()
 
 # State
 
-ggplot(data=re,aes(x=State,y=Price)) +
+ggplot(data=re,aes(x=State,y=log(Price))) +
   geom_boxplot()
 
 # Zip
@@ -141,7 +135,7 @@ Last Sold Year and Last Tax Year don't have a relationship with log price, which
 
 Ditto for Days on Trulia.
 
-# Transformations for Linear Models
+# Potential Transformations for Linear Models
 
 ```{r}
 
@@ -149,7 +143,7 @@ Ditto for Days on Trulia.
 
 ret <- re[,c(-1,-11,-14,-15,-19)]
 
-# Transformations
+# Transformations of total data set
 
 ret$Price <- log(re$Price)
 ret$SqrFt <- sqrt(re$SqrFt)
@@ -159,18 +153,188 @@ ret$LastTaxAssestment <- log(re$LastTaxAssestment)
 
 ```
 
-# Potential Subsets of Transformed Data
+# Potential Subsets of Original Data
 
 ```{r}
 
-# homes in Colorado, California, Denver, 80219
-ca_t <- re[ret$State == "CA",]
-co_t <- re[ret$State == "CO",]
-den_t <- re[ret$City == "Denver",]
+ca <- re[re$State == "CA",c(-1,-11,-14,-15,-19)]
+co <- re[re$State == "CO",c(-1,-11,-14,-15,-19)]
+la <- re[re$City == "Los Angeles",c(-1,-11,-14,-15,-19)]
+den <- re[re$City == "Denver",c(-1,-11,-14,-15,-19)]
 
 ```
 
-# Code for Appendix (if needed for slides and stuff)
+# Visualization of Subsets to Determine if Transformations Necessary
+
+```{r}
+
+# California
+
+# SqFt
+
+ggplot(data=ca,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=ca,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=ca,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=ca,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=ca,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=ca,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=ca,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+ggplot(data=ca,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+ggplot(data=ca,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+ggplot(data=ca,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# State
+
+ggplot(data=ca,aes(x=State,y=log(Price))) +
+  geom_boxplot()
+
+```
+
+```{r}
+
+# Colorado
+
+# SqFt
+
+ggplot(data=co,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=co,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=co,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=co,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=co,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=co,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=co,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+ggplot(data=co,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+ggplot(data=co,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+ggplot(data=co,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# State
+
+ggplot(data=co,aes(x=State,y=log(Price))) +
+  geom_boxplot()
+
+```
+
+```{r}
+
+# Los Angeles
+
+
+
+```
+
+```{r}
+
+# Denver
+
+
+
+```
+
+# Linear Models via 10-fold CV
+
+Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variables measurements of the same object (house) at two different times.
+
+```{r}
+
+# California
+
+
+
+```
+
+```{r}
+
+# Colorado
+
+
+
+```
+
+```{r}
+
+# Los Angeles
+
+
+
+```
+
+```{r}
+
+# Denver
+
+
+
+```
+
+
+
+# Code for Appendix (if it is needed for appendix in slides and paper)
 
 ```{r show-code, ref.label = all_labels(), echo = TRUE, eval = FALSE}
 
