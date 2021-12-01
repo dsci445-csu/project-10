@@ -53,6 +53,8 @@ re$PriceSqrFt <- parse_number(re$PriceSqrFt)
 
 # Visualize Relationships
 
+I just did transformations on each original plot instead of making a new plot for each, just incase you're confused why the plots are already using transformed data.
+
 ```{r}
 
 # Square Ft.
@@ -141,7 +143,7 @@ Ditto for Days on Trulia.
 
 # Remove PriceSqFt, Last Sold Year, Last Tax Year, Days on Trulia
 
-ret <- re[,c(-1,-11,-14,-15,-19)]
+ret <- re[,c(-1,-10,-11,-14,-15,-19)]
 
 # Transformations of total data set
 
@@ -157,14 +159,16 @@ ret$LastTaxAssestment <- log(re$LastTaxAssestment)
 
 ```{r}
 
-ca <- re[re$State == "CA",c(-1,-11,-14,-15,-19)]
-co <- re[re$State == "CO",c(-1,-11,-14,-15,-19)]
-la <- re[re$City == "Los Angeles",c(-1,-11,-14,-15,-19)]
-den <- re[re$City == "Denver",c(-1,-11,-14,-15,-19)]
+ca <- re[re$State == "CA",c(-1,-10,-15)]
+co <- re[re$State == "CO",c(-1,-10,-15)]
+la <- re[re$City == "Los Angeles",c(-1,-10,-15)]
+den <- re[re$City == "Denver",c(-1,-10,-15)]
 
 ```
 
 # Visualization of Subsets to Determine if Transformations Necessary
+
+## California
 
 ```{r}
 
@@ -221,7 +225,36 @@ ggplot(data=ca,aes(x=City,y=log(Price))) +
 ggplot(data=ca,aes(x=State,y=log(Price))) +
   geom_boxplot()
 
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+ggplot(data=ca,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+ggplot(data=ca,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+ggplot(data=ca,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+ggplot(data=ca,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
 ```
+
+## Transformations California
+
+```{r}
+
+
+
+```
+
+## Colorado
 
 ```{r}
 
@@ -278,27 +311,204 @@ ggplot(data=co,aes(x=City,y=log(Price))) +
 ggplot(data=co,aes(x=State,y=log(Price))) +
   geom_boxplot()
 
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+ggplot(data=co,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+ggplot(data=co,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+ggplot(data=co,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+ggplot(data=co,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+
 ```
+
+## Transformations for Colorado
+
+```{r}
+
+
+
+```
+
+## LA
 
 ```{r}
 
 # Los Angeles
 
+# SqFt
+
+ggplot(data=la,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=la,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=la,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=la,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=la,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=la,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=la,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+ggplot(data=co,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+ggplot(data=la,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+ggplot(data=la,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+ggplot(data=la,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+ggplot(data=la,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+ggplot(data=la,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+ggplot(data=la,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
 
 
 ```
+
+## Transformations for LA
+
+```{r}
+
+
+
+```
+
+## Denver
 
 ```{r}
 
 # Denver
 
+# SqFt
+
+ggplot(data=den,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=den,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=den,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=den,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=den,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=den,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=den,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+ggplot(data=den,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+ggplot(data=den,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+ggplot(data=den,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+ggplot(data=den,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+ggplot(data=den,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+ggplot(data=den,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+```
+
+## Transformations for Denver
+
+```{r}
+
 
 
 ```
 
-# Linear Models via 10-fold CV
+# Linear Models formulated/evaluated via 10-fold CV
 
-Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variables measurements of the same object (house) at two different times.
+Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variable measurements are of the same house at two different times i.e. Price Now, Price last sold for.
+
+Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV as model evaluator instead of RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV as well. Afterwards consider step function and spline GAMs if Mark hasn't gotten to those already.
 
 ```{r}
 
