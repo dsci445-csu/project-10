@@ -1,0 +1,472 @@
+---
+title: "dsci445termProject.rmd"
+author: "Mark Gardner"
+date: "11/9/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyverse)
+library(GGally)
+library(ISLR)
+library(class)
+library(MASS)
+library(dplyr)
+# realData <- read_csv("train.csv")
+realData <- read_csv("realEstate.csv")
+head(realData)
+colnames(realData)
+re <- realData
+# get rid of useless columns
+re <- re[,c(-(1:3),-7,-12,-18,-27,-29,-(31:68))]
+
+# remove observations with missing data
+re <- na.omit(re)
+ggpairs(re)
+colnames(realData)
+colnames(re)
+realData <- re
+colnames(realData)
+```
+
+```{r setup, include=FALSE}
+
+summary(realData)
+names(realData)
+realData$MSZoning
+realData[MSZoning == 'A']
+realData[ realData[[MSZoning]] == 'A', ]
+realData[ realData[, "MSZoning"] == "RL", ]
+groupByZoning <- realData %>% group_by(MSZoning)
+countByZoning <- realData %>% count(MSZoning)
+countByZoning
+
+
+
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+
+library(ISLR) ## data package
+library(tidyverse) ## data manipulation
+library(knitr) ## tables
+p <- ggplot(data = realData, mapping = aes(x=TotRmsAbvGrd, y = SalePrice, color = MSZoning)) + 
+  #geom_line(aes(group = color)) 
+  geom_point(alpha=.3)+ 
+  scale_x_log10()+
+  scale_y_continuous()+
+  facet_wrap(~MSZoning)
+
+colnames(re)
+p <- ggplot(data = realData, mapping = aes(x=TotRmsAbvGrd, y = SalePrice, color = MSZoning)) + 
+  #geom_line(aes(group = color)) 
+  geom_point(alpha=.3)+ 
+  scale_x_log10()+
+  scale_y_continuous()+
+  facet_wrap(~MSZoning)
+p
+#CORRECT 
+names(realData)
+summary(realData)
+library(tree)
+library(dplyr)
+library(caret)
+summary(realData$SalePrice)
+colnames(realData)
+
+```
+
+```{r}
+# realData2 <- realData %>% 
+#  mutate(high_sales = factor(ifelse(SalePrice > 214000, "high" , "low")))
+# address and description; raw; don't include 
+summary(realData)
+colnames(realData2)
+realData2 <- realData
+realData2 <- re
+#re$`Lot Size`
+head(realData2$Price)
+#is.numeric(realData2$Price)
+# db <- gsub(",","",db)
+#realData2$Price <- gsub("$", "", realData2$Price)
+#realData3$Price <- gsub(",", "", realData2$Price)
+realData2$Price <- gsub(",", "", realData2$Price)
+separatedPrice <- realData2$Price
+realData2$SqrFt <- gsub(",", "", realData2$SqrFt)
+#str_replace(realData2$Price, "[$]", "")
+#realData2$Price <- as.numeric((realData2$Price))
+#realData2$Price <- substring(2, realData2$Price)
+#summary(realData2$Price)
+head(realData2$Price)
+realData2$Price <- realData2$Price %>% 
+  str_replace("[$]", "")
+realData2$SqrFt <- realData2$SqrFt %>% 
+  str_replace(" sqft", "")
+#is.numeric(realData2$SqrFt)
+#is.character(realData2$SqrFt)
+realData2$SqrFt <- as.numeric(realData2$SqrFt)
+# NAs introduced; how to create average of that missing value? 
+# should long and lat be numeric? character? factor? 
+# lotSize 
+#hairdo %>% mutate(colour = ifelse(str_detect(hair, "Long."), "Blond", "Brunette"))
+# realData2$lotSize
+#realData2$newLotSize <- c()
+#realData2CorrectLotSize <- realData2 %>% mutate(realData2$newLotSize, ifelse(str_detect(lotSize, "acres"), as.numeric(realData2$lotSize) * 43560, lotSize))
+
+#realData2CorrectLotSize$
+realData2$lotSize <- realData2$lotSize %>% 
+  str_replace(" sqft", "") 
+is.numeric(realData2$lotSize)
+is.character(realData2$lotSize)
+realData2$lotSize <- as.numeric(realData2$lotSize)
+
+
+# from sam's 
+# from sam's 
+#inSqft <- rep(NA,length(realData2$lotSize))
+for (i in 1:length(realData2$lotSize)) {
+  if (grepl("sqft",realData2$lotSize[i],fixed=TRUE)) {
+    #inSqft[i] <- TRUE
+    # re$LotSize[i] <- re$LotSize[i]*(1/43560)
+    
+    realData2$lotSize[i] <- parse_number(realData2$lotSize[i])*(1/43560)
+  } else {
+    #inSqft[i] <- FALSE
+   realData2$lotSize[i] <- parse_number(realData2$lotSize[i])
+  }
+}
+# sam's 
+#inSqft <- rep(NA,length(re$lotSize))
+#for (i in 1:length(re$lotSize)) {
+#  if (grepl("sqft",re$lotSize[i],fixed=TRUE)) {
+#    inSqft[i] <- TRUE
+##  } else {
+#    inSqft[i] <- FALSE
+#  }
+#}
+# 
+
+
+realData2 <- realData2 %>% 
+  mutate(high_sales = factor(ifelse(Price > 400000, "high" , "low"))) 
+min(realData2$lotSize)
+max(realData2$lotSize)
+
+colnames(realData2)
+summary(realData2$high_sales)
+# realData2 <- subset(realData2, select = -c(SalePrice))
+realData2 <- subset(realData2, select = -c(Price))
+colnames(realData2)
+#realData2 <- subset(realData2, select = -c(3SsnPorch))
+#colnames(realData2)[70] <- "thirdSSNPorch"
+#colnames(realData2)
+#colnames(realData2)[44]
+#colnames(realData2)[44] <- "firstFloorSQFT"
+#colnames(realData2)[45]
+#colnames(realData2)[45] <- "secondFloorSQFT"
+
+#colnames(realData2)
+
+```
+
+```{r}
+
+nrow(realData2)
+ncol(realData2)
+# naCols <- vector(length=81)
+naCols <- vector(length=22)
+# for (i in 1:81){ naCols[i]<- sum(is.na(realData2[,i]))}
+for (i in 1:22){ naCols[i]<- sum(is.na(realData2[,i]))}
+subset <- realData2[,which(naCols < 10)]
+ncol(subset)
+nrow(subset)
+colnames(subset)
+colnames(realData2)
+summary(realData2)
+
+colnames(realData2)[4] <- "SqrFt"
+colnames(realData2)
+colnames(realData2)[4]
+colnames(realData2)[7] <- "lotSize"
+colnames(realData2)[7]
+colnames(realData2)[10] <- "yearBuilt"
+colnames(realData2)[10]
+colnames(realData2)[11] <- "pricePerSqFoot"
+colnames(realData2)[11]
+colnames(realData2)[12] <- "lastSoldYear"
+colnames(realData2)[12]
+colnames(realData2)[13] <- "lastSoldFor"
+colnames(realData2)[13]
+colnames(realData2)[14] <- "lastTaxAssessment"
+colnames(realData2)[14]
+colnames(realData2)[15] <- "lastTaxYear"
+colnames(realData2)[15]
+colnames(realData2)[20] <- "addressFull"
+colnames(realData2)[12]
+colnames(realData2)[21] <- "dayOnTrulia"
+colnames(realData2)[21]
+
+```
+
+```{r}
+
+tree_fit <- tree(high_sales ~ ., data = subset)
+summary(tree_fit)
+plot(tree_fit)
+text(tree_fit)
+
+n <- nrow(subset)
+n
+# 2nd try
+n <- floor(.8 * nrow(subset))
+n
+train_ind <- sample(seq_len(nrow(subset)),  size = n)
+train_subset <- subset[train_ind,]
+nrow(train_subset)
+test_subset <- subset[-train_ind,]
+nrow(test_subset)
+class(test_subset)
+#test <- -train_ind
+length(test)
+# subset2
+train_subset <- subset2[train_ind,]
+nrow(train_subset)
+ncol(train_subset)
+ncol(test_subset)
+
+test_subset <- subset2[-train_ind,]
+nrow(test_subset)
+ncol(test_subset)
+#
+naCols <- vector(length=14)
+for (i in 1:14){ naCols[i]<- sum(is.na(train_subset[,i]))}
+train_subset_2 <- train_subset[,which(naCols < 10)]
+
+naCols <- vector(length=14)
+for (i in 1:14){ naCols[i]<- sum(is.na(test_subset[,i]))}
+test_subset_2 <- test_subset[,which(naCols < 10)]
+
+####naCols <- vector(length=22)
+# for (i in 1:81){ naCols[i]<- sum(is.na(realData2[,i]))}
+####for (i in 1:22){ naCols[i]<- sum(is.na(realData2[,i]))}
+####subset <- realData2[,which(naCols < 10)]
+#train <- sample(seq_len(n), 6500)
+#length(train)
+#test <- -train
+#length(test)
+#train_subset <- subset[train,]
+tree_fit_final <- tree(high_sales ~ ., train_subset)
+tree_fit_final <- tree(high_sales ~ ., train_subset_2)
+summary(tree_fit_final)
+
+#confusion <- table(pred = predict(tree_fit_final, subset[test,], type = "class"), true = subset[test,]$high_sales)
+confusion <- table(pred = predict(tree_fit_final, subset2[test,], type = "class"), true = subset2[test,]$high_sales)
+
+(confusion[1, 2] + confusion[2, 1])/sum(confusion)
+
+```
+
+
+```{r}
+
+# removing unneeded stuff; creating as.factor and as.numeric. 
+names(subset)
+names(subset2)
+subset2 <- subset(subset, select = -c(Title))
+subset2 <- subset(subset, select = -c(Title, Description, Address, addressFull, City, State, Zipcode, Style)) #ADD STYLE BACK 
+names(subset2)
+subset2$lotSize
+subset2$lastTaxAssessment <- parse_number(subset2$lastTaxAssessment)
+# break this into two level factor.
+subset2$Style <- as.factor(subset2$Style)
+subset2$lotSize <- parse_number(subset2$lotSize)
+subset2$pricePerSqFoot <- parse_number(subset2$pricePerSqFoot)
+subset2$lastSoldFor <- parse_number(subset2$lastSoldFor)
+subset2$City <- as.factor(subset2$City)
+subset2$State <- as.factor(subset2$State)
+subset2$Zipcode <- as.factor(subset2$Zipcode)
+
+tree_cv <- cv.tree(tree_fit_final, FUN = prune.misclass)
+tree_cv$size # What does this mean? 
+prune_fit <- prune.misclass(tree_fit, k = tree_cv$k[which.min(tree_cv$dev)])
+library(glmnet)
+# One error we see here: low predictive power for high valuation; too few observations. Monte carlo ? 
+#confusion_prune <- table(pred = predict(prune_fit, subset[test,], type = "class"), true = subset[test,]$high_sales)
+
+confusion_prune <- table(pred = predict(tree_fit_final, test_subset, type = "class"), true = test_subset$high_sales)
+confusion_prune
+
+(confusion_prune[1, 2] + confusion_prune[2, 1])/sum(confusion_prune)
+
+# This one performs better by about .02 . 
+library(randomForest) 
+
+# check all variables; make char to int or decimal where nececssary. ; make all char to factor if appropriate. 
+summary(subset)
+
+bag_fit <- randomForest(high_sales ~ ., data = train_subset, mtry = ncol(train_subset) - 1, importance = TRUE)
+
+data.frame(bag_fit$importance )%>%
+  mutate(variable = rownames(bag_fit$importance)) %>%
+  mutate(variable = factor(variable, levels = variable[order(MeanDecreaseGini)])) %>% ## trick to plot variable by descending Gini
+  ggplot() +
+  geom_point(aes(MeanDecreaseGini, variable))
+  # latitute = california or the north? 
+```
+
+```{r}
+confusion_bag <- table(pred = predict(bag_fit, test_subset_2, type = "class"), true = test_subset_2$high_sales)
+# Some weird, unknown or uninitialized column error 
+(confusion_bag[1, 2] + confusion_bag[2, 1])/sum(confusion_bag)
+
+rf_fit <- randomForest(high_sales ~ ., data = train_subset,  mtry = sqrt(ncol(train_subset) - 1), importance = TRUE)
+
+rf_fit <- randomForest(high_sales ~ ., data = trn_df, mtry = sqrt(ncol(trn_df) - 1), importance = TRUE)
+
+data.frame(rf_fit$importance)%>%
+  mutate(variable = rownames(rf_fit$importance)) %>%
+  mutate(variable = factor(variable, levels = variable[order(MeanDecreaseGini)])) %>% ## trick to plot variable by descending Gini
+  ggplot() +
+  geom_point(aes(MeanDecreaseGini, variable)) 
+
+train_subset_2$
+test_subset_2$
+
+# PROBLEM: get predicted high/low and prices for that subset; not original separated prices 
+# separatedPrice
+summary(bag_fit)
+bag_fit$predicted
+
+bag_fit$terms
+bag_fit$forest
+```
+
+```{r}
+confusion_rf <- table(pred = predict(rf_fit, test_subset_2, type = "class"), true = test_subset_2$high_sales)
+
+(confusion_rf[1, 2] + confusion_rf[2, 1])/sum(confusion_rf)
+```
+
+```{r}
+confusion_rf
+```
+```{r}
+c(confusion_rf[2, 1], confusion_rf[1, 2])/colSums(confusion_rf)
+```
+```{r}
+rf_fit$confusion
+
+```
+
+```{r}
+#boosting 
+library(gbm) ## boosting package
+subset2$high_sales
+subset_boost$high_sales <- subset2 %>% 
+  mutate(subset2, high_sales = ifelse(high_sales = "high", 1, 0))
+  
+subset_2_boost$high_sales
+
+subset_2_boost <- subset2 %>%
+  mutate(high_sales = 2 - as.numeric(high_sales))
+
+train_subset_2_boost <- train_subset_2 %>%
+  mutate(high_sales = 2 - as.numeric(high_sales))
+
+boost_fit <- gbm(high_sales ~ ., train_subset_2_boost, n.trees = 5000, shrinkage = 0.1, interaction.depth = 2, distribution = "bernoulli")
+
+confusion_boost <- table(pred = predict(boost_fit, train_subset_2, type = "response") > 0.5, true = train_subset_2$high_sales)
+
+(confusion_boost[1, 2] + confusion_boost[2, 1])/sum(confusion_boost)
+
+confusion_boost
+
+c(confusion_boost[2, 1], confusion_boost[1, 2])/colSums(confusion_boost)
+
+```
+
+```{r}
+
+
+realData[70]
+is.data.frame(realData2)
+
+names(realData2[70]) <- "thirdSSNPorch"
+typeof(realData2)
+df <- as.data.frame(realData2)
+df[70]           
+typeof(df)
+realData2 <- realData2 %>% 
+  rename(3SsnPorch = thirdSSNPorch)
+
+# CORRECT 
+
+df <- Carseats
+df <- df %>%
+  mutate(high_sales = factor(ifelse(Sales > 8, "high", "low"))) %>%
+  select(-Sales)
+
+tree_fit <- tree(high_sales ~ ., realData2)
+```
+
+```{r}
+lm <- lm(SalePrice ~ Id + MSSubClass + MSZoning , data = realData)
+lm <- lm(SalePrice ~  ., data = realData[,values_count > 1])
+
+summary(lm)
+summary(realData)
+(l <- sapply(realData, function(x) is.factor(x)))
+m <- realData[, l]
+m
+ifelse(n <- sapply(m, function(x) length(levels(x))) == 1, "DROP", "NODROP")
+n
+
+values_count <- sapply(lapply(realData, unique), length)
+
+names(realData)
+
+p0 <- ggplot(data = diamonds, mapping = aes(x=carat, y = price, color = color)) + 
+  geom_line(aes(group = color)) 
+  #geom_point(alpha=.5)
+# p
+
+
+p <- ggplot(data = diamonds, mapping = aes(x=carat, y = price, color = color)) + 
+  #geom_line(aes(group = color)) 
+  geom_point(alpha=.1)
+p0 <- ggplot(data = diamonds, mapping = aes(x=carat, y = price, color = color)) + 
+  geom_line(aes(group = color)) 
+  #geom_point(alpha=.5)
+# p
+
+ggpairs(realData)
+head(realData)
+cols = colnames(realData)
+for (col in cols){
+  if(is.factor(realData[[col]])){
+    cat(col, ' has ', length(levels(realData[[col]])), '\n')
+  }
+}
+
+summary(realData)
+
+```
+
+## Including Plots 
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
