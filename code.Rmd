@@ -90,11 +90,11 @@ ggplot(data=re,aes(x=YearBuilt,y=log(Price))) +
 
 # Price Square Ft.
 
-# ggplot(data=re,aes(x=PriceSqrFt,y=Price)) + geom_point()
+ggplot(data=re,aes(x=PriceSqrFt,y=Price)) + geom_point()
 
 # Last Sold Year
 
-# ggplot(data=re,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+ggplot(data=re,aes(x=LastSoldYear,y=log(Price))) + geom_point()
 
 # Last Sold For
 
@@ -108,7 +108,7 @@ ggplot(data=re,aes(x=log(LastTaxAssestment),y=log(Price))) +
 
 # Last Tax Year
 
-# ggplot(data=re,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+ggplot(data=re,aes(x=LastTaxYear,y=log(Price))) + geom_point()
 
 # City
 
@@ -122,7 +122,7 @@ ggplot(data=re,aes(x=State,y=log(Price))) +
 
 # Zip
 
-# ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
+ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
 
 # Days On Trulia
 
@@ -131,7 +131,7 @@ ggplot(data=re,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```
 
-Consider not using PriceSqrFt because I'm pretty sure it's calculated directly from Price and SqrFt, and we already have that information.
+Consider not using PriceSqrFt because I'm pretty sure it's calculated directly from Price and SqrFt, and we already have that information. Actually definitely don't use PriceSqrFt cuz that just undermines everything we're trying to accomplish here.
 
 Last Sold Year and Last Tax Year don't have a relationship with log price, which makes quite a bit of sense because house sales and taxes just happen.
 
@@ -141,9 +141,9 @@ Ditto for Days on Trulia.
 
 ```{r}
 
-# Remove PriceSqFt, Last Sold Year, Last Tax Year, Days on Trulia
+# Remove PriceSqFt, Description and Address
 
-ret <- re[,c(-1,-10,-11,-14,-15,-19)]
+ret <- re[,c(-1,-10,-15)]
 
 # Transformations of total data set
 
@@ -250,7 +250,13 @@ ggplot(data=ca,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-
+ca_t <- ca[,c(-14)]
+ca_t$Price <- log(ca_t$Price)
+ca_t$SqrFt <- sqrt(ca_t$SqrFt)
+ca_t$LotSize <- log(ca_t$LotSize)
+ca_t$LastSoldFor <- log(ca_t$LastSoldFor)
+ca_t$LastTaxAssestment <- log(ca_t$LastTaxAssestment)
+ca_t$LastTaxYear <- as.factor(ca_t$LastTaxYear)
 
 ```
 
@@ -315,21 +321,23 @@ ggplot(data=co,aes(x=State,y=log(Price))) +
 
 # Zip
 
-ggplot(data=co,aes(x=Zipcode,y=Price)) + geom_boxplot()
+ggplot(data=co,aes(x=Zipcode,y=Price)) + 
+  geom_boxplot()
 
 # Last Tax Year
 
-ggplot(data=co,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+ggplot(data=co,aes(x=LastTaxYear,y=log(Price))) + 
+  geom_point()
 
 # Last Sold Year
 
-ggplot(data=co,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+ggplot(data=co,aes(x=LastSoldYear,y=log(Price))) + 
+  geom_point()
 
 # Days on Trulia
 
 ggplot(data=co,aes(x=DaysOnTrulia,y=log(Price))) +
   geom_point()
-
 
 ```
 
@@ -337,7 +345,12 @@ ggplot(data=co,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-
+co_t <- co[,c(-12,-14)]
+co_t$Price <- log(co_t$Price)
+co_t$SqrFt <- sqrt(co_t$SqrFt)
+co_t$LotSize <- log(co_t$LotSize)
+co_t$LastSoldFor <- log(co_t$LastSoldFor)
+co_t$LastTaxAssestment <- log(co_t$LastTaxAssestment)
 
 ```
 
@@ -419,7 +432,13 @@ ggplot(data=la,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-
+la_t <- la[,c(-13,-14)]
+la_t$Price <- log(la_t$Price)
+la_t$SqrFt <- sqrt(la_t$SqrFt)
+la_t$LotSize <- log(la_t$LotSize)
+la_t$LastSoldFor <- log(la_t$LastSoldFor)
+la_t$LastTaxAssestment <- log(la_t$LastTaxAssestment)
+la_t$LastTaxYear <- as.factor(la_t$LastTaxYear)
 
 ```
 
@@ -500,7 +519,12 @@ ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-
+den_t <- den[,c(-12,-13,-14)]
+den_t$Price <- log(den_t$Price)
+den_t$SqrFt <- sqrt(den_t$SqrFt)
+den_t$LotSize <- log(den_t$LotSize)
+den_t$LastSoldFor <- log(den_t$LastSoldFor)
+den_t$LastTaxAssestment <- log(den_t$LastTaxAssestment)
 
 ```
 
@@ -508,7 +532,7 @@ ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
 
 Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variable measurements are of the same house at two different times i.e. Price Now, Price last sold for.
 
-Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV as model evaluator instead of RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV as well. Afterwards consider step function and spline GAMs if Mark hasn't gotten to those already.
+Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV as model evaluator instead of training RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV as well. Afterwards consider step function and spline GAMs if Mark hasn't gotten to those already.
 
 ```{r}
 
