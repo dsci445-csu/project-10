@@ -6,6 +6,8 @@ output: pdf_document
 
 library(readr)
 library(ggplot2)
+library(leaps)
+library(HH)
 
 ```
 
@@ -122,7 +124,7 @@ ggplot(data=re,aes(x=State,y=log(Price))) +
 
 # Zip
 
-ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
+# ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
 
 # Days On Trulia
 
@@ -530,13 +532,43 @@ den_t$LastTaxAssestment <- log(den_t$LastTaxAssestment)
 
 # Linear Models formulated/evaluated via 10-fold CV
 
-Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variable measurements are of the same house at two different times i.e. Price Now, Price last sold for.
+Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variable measurements are of the same house at two different times i.e. Price Now, Price last sold for, last tax adjustment. Although I don't see how multicollinearity would be a problem for prediction.
 
-Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV as model evaluator instead of training RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV as well. Afterwards consider step function and spline GAMs if Mark hasn't gotten to those already.
+Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV as model evaluator instead of training RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV as well. Afterwards consider step function and spline GAMs if someone hasn't gotten to those already.
 
 ```{r}
 
 # California
+
+# Best Subset (but not actually best probably)
+
+n <- nrow(ca)
+k <- 10
+
+folds <- sample(seq_len(k), n, replace = k != n)
+cvErrors <- matrix(,nrow=n,ncol=k)
+for (i in 1:k) {
+  models <- lm.regsubsets(Price~.,data=ca_t[folds != i,],method="backward",nvmax=ncol(ca_t)-1, nbest=1)
+  best <- 
+  for (j in 1:(ncol(ca_t)-1)) {
+    pred <- predict( ,ca_t[folds == i,],id=j)
+    cvErrors[i,j] <- mean((ca_t$Price[folds==i]-pred)^2)
+  }
+}
+
+# Ridge
+
+
+
+# Lasso
+
+
+
+# PCR
+
+
+
+# PLS
 
 
 
