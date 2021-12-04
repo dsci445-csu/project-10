@@ -8,6 +8,7 @@ library(readr)
 library(ggplot2)
 library(leaps)
 library(glmnet)
+library(car)
 
 ```
 
@@ -55,7 +56,7 @@ re$PriceSqrFt <- parse_number(re$PriceSqrFt)
 
 # Visualize Relationships
 
-I just did transformations on each original plot instead of making a new plot for each, just incase you're confused why the plots are already using transformed data.
+I just did transformations on each original plot instead of making a new plot for each, just in case you're confused why the plots are already using transformed data.
 
 ```{r}
 
@@ -252,7 +253,7 @@ ggplot(data=ca,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-ca_t <- ca[,c(-14)]
+ca_t <- ca[,c(-14,-15)]
 ca_t$Price <- log(ca_t$Price)
 ca_t$SqrFt <- sqrt(ca_t$SqrFt)
 ca_t$LotSize <- log(ca_t$LotSize)
@@ -347,7 +348,7 @@ ggplot(data=co,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-co_t <- co[,c(-12,-14)]
+co_t <- co[,c(-12,-14,-15)]
 co_t$Price <- log(co_t$Price)
 co_t$SqrFt <- sqrt(co_t$SqrFt)
 co_t$LotSize <- log(co_t$LotSize)
@@ -427,14 +428,13 @@ ggplot(data=la,aes(x=LastSoldYear,y=log(Price))) + geom_point()
 ggplot(data=la,aes(x=DaysOnTrulia,y=log(Price))) +
   geom_point()
 
-
 ```
 
 ## Transformations for LA
 
 ```{r}
 
-la_t <- la[,c(-13,-14)]
+la_t <- la[,c(-13,-14,-15)]
 la_t$Price <- log(la_t$Price)
 la_t$SqrFt <- sqrt(la_t$SqrFt)
 la_t$LotSize <- log(la_t$LotSize)
@@ -521,7 +521,7 @@ ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-den_t <- den[,c(-12,-13,-14)]
+den_t <- den[,c(-12,-13,-14,-15)]
 den_t$Price <- log(den_t$Price)
 den_t$SqrFt <- sqrt(den_t$SqrFt)
 den_t$LotSize <- log(den_t$LotSize)
@@ -536,30 +536,39 @@ Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduc
 
 Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV or 10-fold as model evaluator instead of training RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV or 10-fold as well. Afterwards consider step function and spline GAMs if someone hasn't gotten to those already.
 
+Zipcode maybe should be excluded as a predictor because it is perfectly collinear with some other variable (most likely a city). I think this happens because there aren't enough observations in the city that are outside of the zipcode or the zipcode encapsulates the entire city.
+
 ```{r}
 
-set.seed(420)
-
 k <- 10
-folds <- sample(seq_len(k), n, replace = k != n)
 lambda <- 10^seq(-4,10,length.out=1000)
 
 ```
 
+For California I removed Zipcode and Bathroom and this solved the perfect collinearity issues.
+
 ```{r}
+
+set.seed(420)
 
 # California
 
 n <- nrow(ca)
+folds <- sample(seq_len(k), n, replace = k != n)
 
-# Best Subset (should be possible, but I need to take a break)
+base_lm_ca <- lm(Price~.,data=ca_t)
+aliasMatrixCA <- alias(base_lm_ca)$Complete
+
+# Best Subset
 
 # cvErrors <- matrix(,nrow=n,ncol=k)
 # for (i in 1:k) {
-#   models <- regsubsets(Price~.,data=ca_t[folds != i,],method="backward",nvmax=ncol(ca_t)-1, nbest=1)
-#   for (j in 1:(ncol(ca_t)-1)) {
-#     pred <- 
-#     cvErrors <- mean((ca_t$Price[folds == i]-pred)^2)
+#   models <- summary(regsubsets(Price~.,data=ca_t[folds != i,],method="backward",nbest=1))
+#   modMat <- model.matrix(Price~.,data=ca_t[folds == i,])
+#   for (j in 1:ncol(ca_t)-1) {
+#     coefs <- coef(models,id=j)
+#     pred <- modMat[,names(coefs)] %*% coefs
+#     cvErrors[i,j] <- mean((ca_t$Price[folds == i]-pred)^2)
 #   }
 # }
 
@@ -581,27 +590,45 @@ cv_lasso <- cv.glmnet(model.matrix(Price~.,data=ca_t)[,-1],unlist(ca_t[,1]),alph
 
 ```
 
+For Colorado I only needed to remove zipcode to solve the collinearity issues.
+
 ```{r}
 
 # Colorado
 
+n <- nrow(co)
+folds <- sample(seq_len(k), n, replace = k != n)
 
+base_lm_co <- lm(Price~.,data=co_t)
+aliasMatrixCO <- alias(base_lm_co)$Complete
 
 ```
+
+For LA I removed Zipcode and Bathroom and this solved the perfect collinearity issues.
 
 ```{r}
 
 # Los Angeles
 
+n <- nrow(la)
+folds <- sample(seq_len(k), n, replace = k != n)
 
+base_lm_la <- lm(Price~.,data=la_t)
+aliasMatrixLA <- alias(base_lm_la)$Complete
 
 ```
+
+For Denver I only needed to remove zipcode to solve the collinearity issues.
 
 ```{r}
 
 # Denver
 
+n <- nrow(den)
+folds <- sample(seq_len(k), n, replace = k != n)
 
+base_lm_den<- lm(Price~.,data=den_t)
+aliasMatrixDEN <- alias(base_lm_den)$Complete
 
 ```
 
