@@ -2,7 +2,9 @@
 title: "Housing Price Prediction from Trulia.com Data"
 author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
 date: "12/06/21"
-output: slidy_presentation
+output:
+  beamer_presentation: default
+  slidy_presentation: default
 ---
 
 ```{r, include=FALSE}
@@ -168,6 +170,12 @@ pred_pls_ca <- predict(pls_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12
 
 mse_pls_ca <- mean((ca_t[!trn,]$Price - pred_pls_ca)^2)
 
+errors_ca <- c(mse_base_ca,mse_ridge_ca,mse_lasso_ca,mse_pcr_ca,mse_pls_ca)
+
+```
+
+```{r, include=FALSE}
+
 # Colorado
 
 n <- nrow(co_t)
@@ -224,6 +232,12 @@ pls_trn_co <- plsr(Price ~., data = co_t[trn,c(-6,-7,-12)], scale=TRUE, M=M)
 pred_pls_co <- predict(pls_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12)])[!trn,-1])
 
 mse_pls_co <- mean((co_t[!trn,]$Price - pred_pls_co)^2)
+
+errors_co <- c(mse_base_co,mse_ridge_co,mse_lasso_co,mse_pcr_co,mse_pls_co)
+
+```
+
+```{r, include=FALSE}
 
 # Los Angeles
 
@@ -282,6 +296,12 @@ pred_pls_la <- predict(pls_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])
 
 mse_pls_la <- mean((la_t[!trn,]$Price - pred_pls_la)^2)
 
+errors_la <- c(mse_base_la,mse_ridge_la,mse_lasso_la,mse_pcr_la,mse_pls_la)
+
+```
+
+```{r, include=FALSE}
+
 # Denver
 
 n <- nrow(den_t)
@@ -339,32 +359,64 @@ pred_pls_den <- predict(pls_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)
 
 mse_pls_den <- mean((den_t[!trn,]$Price - pred_pls_den)^2)
 
+errors_den <- c(mse_base_den,mse_ridge_den,mse_lasso_den,mse_pcr_den,mse_pls_den)
+
 ```
-
-# About the Data
-
-
 
 # Motivation
 
+Suppose you want to buy a house in Denver. You find a property that you like, but you want to know if it's a good deal.
 
+Now suppose you have a statistical model that predicts house prices in Denver. You plug in the features of your candidate house and get a price prediction back. You use this prediction to help determine if the house is property priced, overvalued, or undervalued.
+
+The goal of our work in this project is to provide several candidate models for housing price prediction.
+
+# About the Data
+
+Our data comes from Trulia.com and can be found on Kaggle[1]. It's a house listing website like Zillow.com. In fact it was acquired by Zillow in 2015 for $3.5 billion dollars[2]. Buy the competition I guess? 
+
+The dataset contains houses listed on the site from Sep 1, 2019 to Oct 31, 2019. For each house there are several features listed describing location, bedrooms, bathrooms etc.
+
+Initially there were 30006 observations. Many features were not usable for prediction. These columns contained information such as "Unique House ID." After picking out the usable predictors and removing observations with missing information, the number of observations shrunk to 9999, which is still okay.
+
+
+[1] https://www.kaggle.com/promptcloud/real-estate-data-from-trulia
+[2] https://money.cnn.com/2014/07/28/real_estate/zillow-buys-trulia-for-3-5-billion/index.html
 
 # Problems with the Data
 
 Lack of Observations!
 
+# Subsets
+
+We elected to subset the data at both City and State levels. This was based on the assumption that housing markets tend to be more local than national. 
+
+For example I'm from Albuquerque, New Mexico where houses are quite expensive despite the low income levels of the population. This is starkly different from a place like Waco, Texas where houses are pretty cheap despite sometimes being quite large. 
+
+By subsetting our data into observations only from certain states and cities, we are able to create models with data that are more similar to those that will be used with the model.
+
+The subset we choose were California, Los Angeles, Colorado, and Denver.
+
 # Data Transformations for Linear Models
 
+```{r,echo=FALSE, fig.width=4, fig.height=4}
 
+plot(base_lm_ca,c(1,2))
 
-# Add Graph
-
-
+```
 
 # Linear Models
 
 
 
-# Hypothetical Data
+# Additive Polynomial and Step Function Terms
+
+
+
+# Trees
+
+
+
+# Hypothetical Application
 
 
