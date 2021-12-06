@@ -414,12 +414,6 @@ Initially there were 30006 observations. Many features were not usable for predi
 [1] https://www.kaggle.com/promptcloud/real-estate-data-from-trulia
 [2] https://money.cnn.com/2014/07/28/real_estate/zillow-buys-trulia-for-3-5-billion/index.html
 
-# Problems with the Data
-
-An issue we ran into in analysis was a lack of similar observations. For example in the California subset there was only one house with 36 bathrooms, so when it came to leaving out a test-set of our data if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms. The same thing is true for some numeric variables. Shrinkage methods however seemed to be robust against this issue. I'm not totally sure why. 
-
-Another analytical issue we ran into was perfect collinearity between dummy variables. When you have multiple categorical predictors weird things can happen where one column of your model matrix $\textbf{X}$ is a linear combination of other columns and so least squares isn't possible, since $\textbf{X}$ doesn't have an inverse. The only solution I found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. city and zipcode were sometimes perfectly collinear. Lack of observations was also probably a contributing factor to this issue.
-
 # Subsets
 
 I elected to subset the data at both City and State levels. This was based on the assumption that housing markets tend to be more local than national. 
@@ -429,6 +423,12 @@ For example I'm from Albuquerque, New Mexico where houses are quite expensive de
 By subsetting our data into observations only from certain states and cities, I was able to create models with data that are more similar to those that will be used with the model.
 
 The subset I chose were California, Los Angeles, Colorado, and Denver.
+
+# Problems with the Data
+
+An issue we ran into in analysis was a lack of similar observations. For example in the California subset there was only one house with 36 bathrooms, so when it came to leaving out a test-set of our data if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms. The same thing is true for some numeric variables. Shrinkage methods however seemed to be robust against this issue. I'm not totally sure why. 
+
+Another analytical issue we ran into was perfect collinearity between dummy variables. When you have multiple categorical predictors weird things can happen where one column of your model matrix $\textbf{X}$ is a linear combination of other columns and so least squares isn't possible, since $\textbf{X}$ doesn't have an inverse. The only solution I found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. city and zipcode were sometimes perfectly collinear. Lack of observations was also probably a contributing factor to this issue.
 
 # Criteria for Linear Model Fitting
 
