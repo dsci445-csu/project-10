@@ -1,0 +1,1319 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(tinytex)
+# knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(include  = FALSE)
+```
+
+
+```{r}
+
+library(readr)
+library(ggplot2)
+library(leaps)
+library(glmnet)
+library(car)
+library(pls)
+library(dplyr)
+
+
+library(tidyverse)
+library(ISLR)
+library(MASS)
+library(glmnet)
+library(leaps)
+library(pls)
+library(boot)
+library(ggpubr)
+
+
+
+```
+
+
+
+```{r}
+
+# read in data
+re <- read_csv("./realEstate.csv")
+
+# get rid of useless columns
+re <- re[,c(-(1:4),-7,-8,-12,-18,-(27:29),-(31:68))]
+
+# remove observations with missing data
+re <- na.omit(re)
+
+# make better var names
+names(re) <- gsub(" ","", names(re))
+
+# remove unit labels and dollar signs
+re$Price <- parse_number(re$Price)
+re$SqrFt <- parse_number(re$SqrFt)
+
+inSqft <- rep(NA,length(re$LotSize))
+for (i in 1:length(re$LotSize)) {
+  if (grepl("sqft",re$LotSize[i],fixed=TRUE)) {
+    inSqft[i] <- TRUE
+  } else {
+    inSqft[i] <- FALSE
+  }
+}
+re$LotSize <- parse_number(re$LotSize)
+for (i in 1:length(re$LotSize)) {
+  if (inSqft[i]) {
+    re$LotSize[i] <- re$LotSize[i]*(1/43560)
+  }
+}
+
+re$Bath <- as.factor(re$Bath)
+re$Beds <- as.factor(re$Beds)
+
+re$LastSoldFor <- parse_number(re$LastSoldFor)
+re$LastTaxAssestment <- parse_number(re$LastTaxAssestment)
+re$PriceSqrFt <- parse_number(re$PriceSqrFt)
+
+```
+
+# Visualize Relationships
+
+I just did transformations on each original plot instead of making a new plot for each, just in case you're confused why the plots are already using transformed data.
+
+```{r}
+
+# Square Ft.
+
+ggplot(data=re,aes(x=SqrFt^(1/4),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=re,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=re,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=re,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=re,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=re,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=re,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Price Square Ft.
+
+ggplot(data=re,aes(x=PriceSqrFt,y=Price)) + geom_point()
+
+# Last Sold Year
+
+ggplot(data=re,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Last Sold For
+
+ggplot(data=re,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+ggplot(data=re,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# Last Tax Year
+
+ggplot(data=re,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# City
+
+ggplot(data=re,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# State
+
+ggplot(data=re,aes(x=State,y=log(Price))) +
+  geom_boxplot()
+
+# Zip
+
+# ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Days On Trulia
+
+ggplot(data=re,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+```
+
+Consider not using PriceSqrFt because I'm pretty sure it's calculated directly from Price and SqrFt, and we already have that information. Actually definitely don't use PriceSqrFt cuz that just undermines everything we're trying to accomplish here.
+
+Last Sold Year and Last Tax Year don't have a relationship with log price, which makes quite a bit of sense because house sales and taxes just happen.
+
+Ditto for Days on Trulia.
+
+# Potential Subsets of Original Data
+
+```{r}
+
+ca <- re[re$State == "CA",c(-1,-10,-15)]
+co <- re[re$State == "CO",c(-1,-10,-15)]
+la <- re[re$City == "Los Angeles",c(-1,-10,-15)]
+den <- re[re$City == "Denver",c(-1,-10,-15)]
+
+```
+
+# Visualization of Subsets to Determine if Transformations Necessary
+
+## California
+
+```{r}
+
+# California
+
+# SqFt
+
+ggplot(data=ca,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=ca,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=ca,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=ca,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=ca,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=ca,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=ca,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+ggplot(data=ca,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+ggplot(data=ca,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+ggplot(data=ca,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# State
+
+ggplot(data=ca,aes(x=State,y=log(Price))) +
+  geom_boxplot()
+
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+ggplot(data=ca,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+ggplot(data=ca,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+ggplot(data=ca,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+ggplot(data=ca,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+```
+
+## Transformations California
+
+```{r}
+
+ca_t <- ca[,c(-7,-14,-15)]
+ca_t$Price <- log(ca_t$Price)
+ca_t$SqrFt <- sqrt(ca_t$SqrFt)
+ca_t$LotSize <- log(ca_t$LotSize)
+ca_t$LastSoldFor <- log(ca_t$LastSoldFor)
+ca_t$LastTaxAssestment <- log(ca_t$LastTaxAssestment)
+ca_t$LastTaxYear <- as.factor(ca_t$LastTaxYear)
+
+```
+
+## Colorado
+
+```{r}
+
+# Colorado
+
+# SqFt
+
+ggplot(data=co,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=co,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=co,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=co,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=co,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=co,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=co,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+ggplot(data=co,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+ggplot(data=co,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+ggplot(data=co,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# State
+
+ggplot(data=co,aes(x=State,y=log(Price))) +
+  geom_boxplot()
+
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+ggplot(data=co,aes(x=Zipcode,y=Price)) + 
+  geom_boxplot()
+
+# Last Tax Year
+
+ggplot(data=co,aes(x=LastTaxYear,y=log(Price))) + 
+  geom_point()
+
+# Last Sold Year
+
+ggplot(data=co,aes(x=LastSoldYear,y=log(Price))) + 
+  geom_point()
+
+# Days on Trulia
+
+ggplot(data=co,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+```
+
+## Transformations for Colorado
+
+```{r}
+
+co_t <- co[,c(-12,-14,-15)]
+co_t$Price <- log(co_t$Price)
+co_t$SqrFt <- sqrt(co_t$SqrFt)
+co_t$LotSize <- log(co_t$LotSize)
+co_t$LastSoldFor <- log(co_t$LastSoldFor)
+co_t$LastTaxAssestment <- log(co_t$LastTaxAssestment)
+
+```
+
+## LA
+
+```{r}
+
+# Los Angeles
+
+# SqFt
+
+ggplot(data=la,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+# Longitude and Latitude
+
+ggplot(data=la,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+ggplot(data=la,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+ggplot(data=la,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+ggplot(data=la,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+ggplot(data=la,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+ggplot(data=la,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+ggplot(data=co,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+
+ggplot(data=la,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+ggplot(data=la,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+ggplot(data=la,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+ggplot(data=la,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+ggplot(data=la,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+ggplot(data=la,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+```
+
+## Transformations for LA
+
+```{r}
+
+la_t <- la[,c(-7,-13,-14,-15)]
+la_t$Price <- log(la_t$Price)
+la_t$SqrFt <- sqrt(la_t$SqrFt)
+la_t$LotSize <- log(la_t$LotSize)
+la_t$LastSoldFor <- log(la_t$LastSoldFor)
+la_t$LastTaxAssestment <- log(la_t$LastTaxAssestment)
+la_t$LastTaxYear <- as.factor(la_t$LastTaxYear)
+
+```
+
+
+
+
+## Denver
+
+```{r}
+
+# Denver
+
+# SqFt
+
+dsqr <- ggplot(data=den,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+
+# Longitude and Latitude
+
+dlong <- ggplot(data=den,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+dlat <- ggplot(data=den,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+dlot <- ggplot(data=den,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+dbed <- ggplot(data=den,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+dbat <- ggplot(data=den,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+dyear <- ggplot(data=den,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+dlasts <- ggplot(data=den,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+dlasttaxa <-  ggplot(data=den,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+dcity <- ggplot(data=den,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+dzip <- ggplot(data=den,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+dlasttaxy <- ggplot(data=den,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+dlastsold <- ggplot(data=den,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+dday <- ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+ggarrange(dsqr, dlong, dlat, dlot,
+           # labels = c("A", "B", "C"),
+          ncol = 2, nrow = 2)
+
+
+ggarrange(dbed, dbat, dyear, dlasts,
+           # labels = c("A", "B", "C"),
+          ncol = 2, nrow = 2)
+
+ggarrange(dlasttaxa, dcity, dzip, dlasttaxy,
+           # labels = c("A", "B", "C"),
+          ncol = 2, nrow = 2)
+
+
+ggarrange(dlastsold, dday, 
+           # labels = c("Last Sold year", "Days on Trulia"),
+          ncol = 2, nrow = 2)
+
+```
+
+## Transformations for Denver
+
+```{r}
+
+den_t <- den[,c(-12,-13,-14,-15)]
+den_t$Price <- log(den_t$Price)
+den_t$SqrFt <- sqrt(den_t$SqrFt)
+den_t$LotSize <- log(den_t$LotSize)
+den_t$LastSoldFor <- log(den_t$LastSoldFor)
+den_t$LastTaxAssestment <- log(den_t$LastTaxAssestment)
+
+```
+
+# Linear Models formulated/evaluated via 10-fold CV
+
+Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variable measurements are of the same house at two different times i.e. Price Now, Price last sold for, last tax adjustment. Although I don't see how multicollinearity would be a problem for prediction exactly, maybe it wouldn't be.
+
+Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV or 10-fold as model evaluator instead of training RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV or 10-fold as well. Afterwards consider step function and spline GAMs if someone hasn't gotten to those already.
+
+Zipcode maybe should be excluded as a predictor because it is perfectly collinear with some other variable (most likely a city). I think this happens because there aren't enough observations in the city that are outside of the zipcode or the zipcode encapsulates the entire city.
+
+I decided (I think) just to do a "best" subset model based on my visualization instead, and a linear regression wtih all the predictors. In the slides we can talk about what a pain in the ass best subset selection is. Frankly, I don't think it's worth it, maybe ever the Lasso and Ridge are just so much easier for basically the same functionality. Or we could do it but idk.
+
+When there is only a few observations for a certain factor level all of them can get left out of the training set, which is problematic because then we can't actually predict on them.
+
+
+
+For California I removed Zipcode and Bathroom and this solved the perfect collinearity issues.
+
+
+### JJ work here!
+
+
+```{r }
+# ca_t #CA state
+# la_t #LA city
+# den_t # Denver city
+# co_t # colorado state
+
+
+#let start from CA state on Polynomial regression
+
+#Base from the plot above, we would want to do LotSize and year build for our polynomial regression
+CA = ca_t
+
+n = nrow(CA)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- CA[cv_labels != j, ]
+    test <- CA[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+# 7 would be the best degree to pick for lot size variable
+# 4 would be the best degree to pick for year built variabel
+
+lmLS <- lm(Price ~ poly(LotSize, 7), data = CA)
+lmYB <- lm(Price ~ poly(YearBuilt, 4), data = CA)
+CA_lmLS_poly <- lmLS
+CA_lmYB_poly <- lmYB
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, which.min(cv_mseLS)))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 4))[1]), poly(x, which.min(cv_mseYB)))
+  polyLS %*% lmYB$coefficients
+}
+
+ggplot(data=CA,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+ggplot(data=CA,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+#start prediction part
+erLS <- rep(NA, d)
+erYB <- rep(NA, d)
+for(i in 2: d){
+  CA$LotSize.cut <- cut(CA$LotSize, i)
+  fitLS2 <- glm(Price ~ LotSize.cut, data = CA)
+  erLS[i] <- cv.glm(CA, fitLS2, K = 10)$delta[1]
+  
+  CA$YearBuilt.cut <- cut(CA$YearBuilt, i)
+  fitYB2 <- glm(Price ~ YearBuilt.cut, data = CA)
+  erYB[i] <- cv.glm(CA, fitYB2, K = 10)$delta[1]
+}
+erLS
+erYB
+
+plot(2:10, erLS[-1], type = 'l')
+dminLS <- which.min(erLS)
+points(dminLS, erLS[dminLS])
+
+plot(2:10, erYB[-1], type = 'l')
+dminYB <- which.min(erYB)
+points(dminYB, erYB[dminYB])
+
+LS <- CA$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 10), data = CA)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() + 
+  geom_point(aes(LotSize,Price),data=CA,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+CA_lmLS_SF <- fitLS3
+
+
+YB <- CA$YearBuilt
+fitYB3 <- lm(Price ~ cut(YearBuilt, breaks = 10), data = CA)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() + 
+  geom_point(aes(YearBuilt,Price),data=CA,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitYB3, grid)), colour = "red") +
+  theme_bw()
+
+CA_lmYB_SF <- fitYB3
+
+
+
+```
+
+
+
+```{r }
+#Now we got CA, let do Colroado or CO
+CO <- co_t
+n = nrow(CO)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- CO[cv_labels != j, ]
+    test <- CO[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+# 2 would be the best degree to pick for lot size variable
+# 7 would be the best degree to pick for year built variabel
+
+lmLS <- lm(Price ~ poly(LotSize, 2), data = CO)
+lmYB <- lm(Price ~ poly(YearBuilt, 7), data = CO)
+
+CO_lmLS_poly <- lmLS
+CO_lmYB_poly <- lmYB
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 2))[1]), poly(x, 2))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, 7))
+  polyLS %*% lmYB$coefficients
+}
+
+ggplot(data=CO,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+ggplot(data=CO,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+#start prediction part
+erLS <- rep(NA, d)
+erYB <- rep(NA, d)
+for(i in 2: d){
+  CO$LotSize.cut <- cut(CO$LotSize, i)
+  fitLS2 <- glm(Price ~ LotSize.cut, data = CO)
+  erLS[i] <- cv.glm(CO, fitLS2, K = 10)$delta[1]
+  
+  CO$YearBuilt.cut <- cut(CO$YearBuilt, i)
+  fitYB2 <- glm(Price ~ YearBuilt.cut, data = CO)
+  erYB[i] <- cv.glm(CO, fitYB2, K = 10)$delta[1]
+}
+erLS
+erYB
+
+plot(2:10, erLS[-1], type = 'l')
+dminLS <- which.min(erLS)
+points(dminLS, erLS[dminLS])
+
+plot(2:10, erYB[-1], type = 'l')
+dminYB <- which.min(erYB)
+points(dminYB, erYB[dminYB])
+
+LS <- CO$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 10), data = CO)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() + 
+  geom_point(aes(LotSize,Price),data=CO,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+YB <- CO$YearBuilt
+fitLS3 <- lm(Price ~ cut(YearBuilt, breaks = 10), data = CO)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() + 
+  geom_point(aes(YearBuilt,Price),data=CO,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+
+```
+
+```{r }
+# Sub it down to small city
+Denver <- den_t
+
+n = nrow(Denver)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- Denver[cv_labels != j, ]
+    test <- Denver[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+
+
+#degree for both year built and lot size are 7
+
+lmLS <- lm(Price ~ poly(LotSize, 7), data = Denver)
+lmYB <- lm(Price ~ poly(YearBuilt, 7), data = Denver)
+
+DN_lmLS_poly <- lmLS
+DN_lmYB_poly <- lmYB
+
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, 7))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, 7))
+  polyLS %*% lmYB$coefficients
+}
+
+ggplot(data=Denver,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+ggplot(data=Denver,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+#start prediction part
+erLS <- rep(NA, d)
+erYB <- rep(NA, d)
+for(i in 2: d){
+  Denver$LotSize.cut <- cut(Denver$LotSize, i)
+  fitLS2 <- glm(Price ~ LotSize.cut, data = Denver)
+  erLS[i] <- cv.glm(Denver, fitLS2, K = 10)$delta[1]
+  
+  Denver$YearBuilt.cut <- cut(Denver$YearBuilt, i)
+  fitYB2 <- glm(Price ~ YearBuilt.cut, data = Denver)
+  erYB[i] <- cv.glm(Denver, fitYB2, K = 10)$delta[1]
+}
+erLS
+erYB
+
+plot(2:10, erLS[-1], type = 'l')
+dminLS <- which.min(erLS)
+points(dminLS, erLS[dminLS])
+
+plot(2:10, erYB[-1], type = 'l')
+dminYB <- which.min(erYB)
+points(dminYB, erYB[dminYB])
+
+
+LS <- Denver$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 10), data = Denver)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() + 
+  geom_point(aes(LotSize,Price),data=Denver,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+YB <- Denver$YearBuilt
+fitLS3 <- lm(Price ~ cut(YearBuilt, breaks = 4), data = Denver)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() + 
+  geom_point(aes(YearBuilt,Price),data=Denver,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+```
+
+```{r }
+# City LA
+LA <- la_t
+
+n = nrow(LA)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- LA[cv_labels != j, ]
+    test <- LA[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+
+
+#degree for lot size is 6 and year built is 5
+
+lmLS <- lm(Price ~ poly(LotSize, 6), data = LA)
+lmYB <- lm(Price ~ poly(YearBuilt, 5), data = LA)
+
+
+LA_lmLS_poly <- lmLS
+LA_lmYB_poly <- lmYB
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 6))[1]), poly(x, 6))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 5))[1]), poly(x, 5))
+  polyLS %*% lmYB$coefficients
+}
+
+ggplot(data=LA,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+ggplot(data=LA,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+
+#start prediction part
+erLS <- rep(NA, d)
+# erYB <- rep(NA, d)
+for(i in 2: d){
+  LA$LotSize.cut <- cut(LA$LotSize, i)
+  fitLS2 <- glm(Price ~ LotSize.cut, data = LA)
+  erLS[i] <- cv.glm(LA, fitLS2, K = 10)$delta[1]
+  # 
+  # LA$YearBuilt.cut <- cut(LA$YearBuilt, i)
+  # fitYB2 <- glm(Price ~ YearBuilt.cut, data = LA)
+  # erYB[i] <- cv.glm(LA, fitYB2, K = 10)$delta[1]
+}
+erLS
+# erYB
+
+
+
+
+plot(2:10, erLS[-1], type = 'l')
+dminLS <- which.min(erLS)
+points(dminLS, erLS[dminLS])
+
+# plot(2:10, erYB[-1], type = 'l')
+# dminYB <- which.min(erYB)
+# points(dminYB, erYB[dminYB])
+
+
+LS <- LA$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 3), data = LA)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() + 
+  geom_point(aes(LotSize,Price),data=LA,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+YB <- LA$YearBuilt
+fitLS3 <- lm(Price ~ cut(YearBuilt, breaks = 4), data = LA)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+ggplot() +
+  geom_point(aes(YearBuilt,Price),data=LA,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+```
+
+
+```{r }
+#prediction
+#starting from CA, CO then denver and LA
+
+set.seed(420)
+n <- nrow(CA)
+catest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+n <- nrow(CO)
+cotest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+n <- nrow(Denver)
+dntest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+n <- nrow(LA)
+latest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+pred_polyCA_LS <- predict(CA_lmLS_poly, CA[catest, 5])
+pred_polyCA_YB <- predict(CA_lmYB_poly, CA[catest, 7])
+# pred_sfCA_LS <- predict(CA_lmLS_SF, CA[catest, 5])
+# pred_sfCA_YB <- predict(CA_lmYB_SF, CA[catest, 7])
+
+pred_polyCO_LS <- predict(CO_lmLS_poly, CO[cotest, 5])
+pred_polyCO_YB <- predict(CO_lmYB_poly, CO[cotest, 8])
+
+pred_polyDN_LS <- predict(DN_lmLS_poly, Denver[dntest, 5])
+pred_polyDN_YB <- predict(DN_lmYB_poly, Denver[dntest, 8])
+
+pred_polyLA_LS <- predict(LA_lmLS_poly, LA[latest, 5])
+pred_polyLA_YB <- predict(LA_lmYB_poly, LA[latest, 7])
+
+#getting MSE
+
+MSE_CALS <- mean((CA[catest,]$Price - pred_polyCA_LS)^2)
+MSE_CAYB <- mean((CA[catest,]$Price - pred_polyCA_YB)^2)
+
+MSE_COLS <- mean((CO[cotest,]$Price - pred_polyCO_LS)^2)
+MSE_COYB <- mean((CO[cotest,]$Price - pred_polyCO_YB)^2)
+
+MSE_DNLS <- mean((Denver[dntest,]$Price - pred_polyDN_LS)^2)
+MSE_DNYB <- mean((Denver[dntest,]$Price - pred_polyDN_YB)^2)
+
+MSE_LALS <- mean((LA[latest,]$Price - pred_polyLA_LS)^2)
+MSE_LAYB <- mean((LA[latest,]$Price - pred_polyLA_YB)^2)
+
+
+
+```
+
+
+
+### JJ work end!!!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ```{r} -->
+
+<!-- set.seed(420) -->
+
+<!-- # California -->
+
+<!-- n <- nrow(ca) -->
+<!-- trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n)) -->
+
+<!-- n <- length(trn[trn==TRUE]) -->
+<!-- folds <- sample(seq_len(k), n, replace = k != n) -->
+
+<!-- # Base Model -->
+
+<!-- base_lm_ca <- lm(Price~.,data=ca_t[trn,c(-6,-12)]) -->
+<!-- aliasMatrixCA <- alias(base_lm_ca)$Complete -->
+
+<!-- pred_base_ca <- predict(base_lm_ca,ca_t[!trn,c(-6,-12)]) -->
+<!-- mse_base_ca <- mean((ca_t[!trn,c(-6,-12)]$Price - pred_base_ca)^2) -->
+<!-- mse_base_ca -->
+
+<!-- # Ridge -->
+
+<!-- cv_ridge_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=lambda,foldid=folds) -->
+
+<!-- ridge_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=cv_ridge_ca$lambda.min) -->
+<!-- pred_ridge_ca <- predict(ridge_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1]) -->
+
+<!-- mse_ridge_ca <- mean((ca_t[!trn,]$Price - pred_ridge_ca)^2) -->
+<!-- mse_ridge_ca -->
+
+<!-- # Lasso -->
+
+<!-- cv_lasso_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=lambda,foldid=folds) -->
+
+<!-- lasso_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=cv_lasso_ca$lambda.min) -->
+<!-- pred_lasso_ca <- predict(lasso_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1]) -->
+
+<!-- mse_lasso_ca <- mean((ca_t[!trn,]$Price - pred_lasso_ca)^2) -->
+<!-- mse_lasso_ca -->
+
+<!-- # PCR -->
+
+<!-- cv_pcr_ca <- pcr(Price ~ ., data = ca_t[trn,c(-6,-7,-12,-13)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(ca_t[trn,]),10)) -->
+<!-- mse_cv <- MSEP(cv_pcr_ca) -->
+<!-- M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])] -->
+
+<!-- pcr_trn_ca <- pcr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M) -->
+<!-- pred_pcr_ca <- predict(pcr_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1]) -->
+
+<!-- mse_pcr_ca <- mean((ca_t[!trn,]$Price - pred_pcr_ca)^2) -->
+<!-- mse_pcr_ca -->
+
+<!-- # PLS -->
+
+<!-- cv_pls_ca <- plsr(Price ~ ., data = ca_t[trn, c(-6,-7,-12,-13)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(ca_t[trn,]),10)) -->
+<!-- mse_cv <- MSEP(cv_pls_ca) -->
+<!-- M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])] -->
+
+<!-- pls_trn_ca <- plsr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M) -->
+<!-- pred_pls_ca <- predict(pls_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1]) -->
+
+<!-- mse_pls_ca <- mean((ca_t[!trn,]$Price - pred_pls_ca)^2) -->
+<!-- mse_pls_ca -->
+
+<!-- ``` -->
+
+<!-- For Colorado I only needed to remove zipcode to solve the collinearity issues. -->
+
+<!-- ```{r} -->
+
+<!-- # Colorado -->
+
+<!-- n <- nrow(co) -->
+<!-- folds <- sample(seq_len(k), n, replace = k != n) -->
+
+<!-- # Base Model -->
+
+<!-- base_lm_co <- lm(Price~.,data=co_t) -->
+<!-- aliasMatrixCO <- alias(base_lm_co)$Complete -->
+
+<!-- ## COMPUTE ERROR HERE -->
+
+<!-- # Ridge -->
+
+<!-- cv_ridge_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[,-1],unlist(co_t[,1]),alpha=0,lambda=lambda,foldid=folds) -->
+
+<!-- # Lasso -->
+
+<!-- cv_lasso_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[,-1],unlist(co_t[,1]),alpha=1,lambda=lambda,foldid=folds) -->
+
+<!-- # PCR -->
+
+
+
+<!-- # PLS -->
+
+
+
+<!-- ``` -->
+
+<!-- For LA I removed Zipcode and Bathroom and this solved the perfect collinearity issues. -->
+
+<!-- ```{r} -->
+
+<!-- # Los Angeles -->
+
+<!-- n <- nrow(la) -->
+<!-- folds <- sample(seq_len(k), n, replace = k != n) -->
+
+<!-- # Base Model -->
+
+<!-- base_lm_la <- lm(Price~.,data=la_t) -->
+<!-- aliasMatrixLA <- alias(base_lm_la)$Complete -->
+
+<!-- ## NEED TO COMPUTE CV ERROR HERE -->
+
+
+
+<!-- # Ridge -->
+
+<!-- cv_ridge_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[,-1],unlist(la_t[,1]),alpha=0,lambda=lambda,foldid=folds) -->
+
+<!-- # Lasso -->
+
+<!-- cv_lasso_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[,-1],unlist(la_t[,1]),alpha=1,lambda=lambda,foldid=folds) -->
+
+<!-- # PCR -->
+
+
+
+<!-- # PLS -->
+
+
+
+<!-- ``` -->
+
+<!-- For Denver I only needed to remove zipcode to solve the collinearity issues. -->
+
+<!-- ```{r} -->
+
+<!-- # Denver -->
+
+<!-- n <- nrow(den) -->
+<!-- folds <- sample(seq_len(k), n, replace = k != n) -->
+
+<!-- # Base Model -->
+
+<!-- base_lm_den<- lm(Price~.,data=den_t) -->
+<!-- aliasMatrixDEN <- alias(base_lm_den)$Complete -->
+
+<!-- ## NEED TO COMPUTE CV ERROR HERE -->
+
+
+
+<!-- # Ridge -->
+
+<!-- cv_ridge_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[,-1],unlist(den_t[,1]),alpha=0,lambda=lambda,foldid=folds) -->
+
+<!-- # Lasso -->
+
+<!-- cv_lasso_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[,-1],unlist(den_t[,1]),alpha=1,lambda=lambda,foldid=folds) -->
+
+<!-- # PCR -->
+
+
+
+<!-- # PLS -->
+
+
+
+<!-- ``` -->
+
+
+
+<!-- # Code for Appendix (if it is needed for appendix in slides and paper) -->
+
+<!-- ```{r show-code, ref.label = all_labels(), echo = TRUE, eval = FALSE} -->
+
+<!-- ``` -->
