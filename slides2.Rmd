@@ -1,0 +1,402 @@
+---
+title: "Housing Price Prediction from Trulia.com Data"
+author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
+date: "12/06/21"
+output:
+  beamer_presentation: default
+  slidy_presentation: default
+---
+
+```{r, include=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(GGally)
+library(ISLR)
+library(class)
+library(MASS)
+library(dplyr)
+library(gbm) ## boosting package
+library(randomForest) 
+library(glmnet)
+library(modelr)
+library(rpart)
+library(splines)
+library(zoo)
+library(dplyr)
+library(ISLR) ## data package
+library(tidyverse) ## data manipulation
+library(knitr) ## tables
+library(tree)
+library(dplyr)
+library(caret)
+
+```
+
+
+```{r, include = FALSE }
+realData <- read_csv("realEstate.csv")
+#head(realData)
+#colnames(realData)
+re <- realData
+re <- re[,c(-(1:3),-7,-12,-18,-27,-29,-(31:68))]
+#realData2 <- re
+re <- na.omit(re)
+realData2 <- re
+
+
+#realData2 <- realData2 %>% 
+#  mutate(high_sales = factor(ifelse(Price > 400000, "high" , "low"))) 
+#min(realData2$lotSize)
+#max(realData2$lotSize)
+#colnames(realData2)
+#summary(realData2$high_sales)
+#subset2$price <- separatedPrice
+#realData2 <- subset(realData2, select = -c(Price))
+#colnames(realData2)
+
+
+```
+
+```{r, include = FALSE}
+colnames(realData2)
+summary(realData2)
+colnames(realData2)[5] <- "SqrFt"
+colnames(realData2)
+colnames(realData2)[5]
+colnames(realData2)[8] <- "lotSize"
+colnames(realData2)[8]
+colnames(realData2)[11] <- "yearBuilt"
+colnames(realData2)[11]
+colnames(realData2)[12] <- "pricePerSqFoot"
+colnames(realData2)[12]
+colnames(realData2)[13] <- "lastSoldYear"
+colnames(realData2)[13]
+colnames(realData2)[14] <- "lastSoldFor"
+colnames(realData2)[14]
+colnames(realData2)[15] <- "lastTaxAssessment"
+colnames(realData2)[15]
+colnames(realData2)[16] <- "lastTaxYear"
+colnames(realData2)[16]
+colnames(realData2)[21] <- "addressFull"
+colnames(realData2)[21]
+colnames(realData2)[22] <- "dayOnTrulia"
+colnames(realData2)[22]
+colnames(realData2)
+
+subset <- realData2
+subset2 <- subset(subset, select = -c(Title, Description, Address, addressFull, City, State, Zipcode))
+subset2$lastTaxAssessment <- parse_number(subset2$lastTaxAssessment)
+subset2$Style <- parse_number(subset2$Style)
+subset2$SqrFt <- parse_number(subset2$SqrFt)
+subset2$lotSize <- parse_number(subset2$lotSize)
+subset2$pricePerSqFoot <- parse_number(subset2$pricePerSqFoot)
+subset2$lastSoldFor <- parse_number(subset2$lastSoldFor)
+subset2$Price <- parse_number(subset2$Price)
+names(subset2)
+
+tree_fit <- tree(Price ~ ., data = subset2)
+
+
+```
+
+```{r, include = FALSE }
+
+for (i in 1:length(realData2$lotSize)) {
+  if (grepl("sqft",realData2$lotSize[i],fixed=TRUE)) {
+    #inSqft[i] <- TRUE
+    # re$LotSize[i] <- re$LotSize[i]*(1/43560)
+    
+    realData2$lotSize[i] <- parse_number(realData2$lotSize[i])*(1/43560)
+  } else {
+    #inSqft[i] <- FALSE
+   realData2$lotSize[i] <- parse_number(realData2$lotSize[i])
+  }
+}
+```
+
+
+
+```{r, include = FALSE}
+# RANDOM FOREST 
+#names(subset2)
+n <- nrow(subset2)
+#n
+n <- floor(.8 * nrow(subset2))
+#n
+train_ind <- sample(seq_len(nrow(subset2)),  size = n)
+#names(subset2)
+train_subset <- subset2[train_ind,]
+#nrow(train_subset)
+#ncol(train_subset)
+#ncol(test_subset)
+test_subset <- subset2[-train_ind,]
+#nrow(test_subset)
+#ncol(test_subset)
+```
+
+```{r, include = FALSE}
+
+#4th try 
+# COREECT BELOW 
+train_subset3 <- train_subset %>%
+          mutate_if(is.character, factor)
+
+test_subset3 <- test_subset %>%
+          mutate_if(is.character, factor)
+
+#test_subset3$high_sales
+
+ctrl_none <- trainControl(method = "none")
+
+#names(train_subset3)
+# https://therbootcamp.github.io/appliedML_2019Jan/_sessions/Prediction/Prediction_practical.html
+# done below 
+# test 
+
+mvc <- 0 
+for(i in 1:ncol(test_subset)){
+  m = sum(is.na(test_subset[,i]))
+  print(paste("column ", colnames(test_subset[i]), " has ", m , "missing values"))
+  if(m>0){
+    mvc = mvc+1
+  }else{
+    mvc
+  }
+}
+#test_subset4 <- test_subset3    
+test_subset4 <- na.aggregate(test_subset)
+#names(test_subset4)
+
+mvc <- 0 
+for(i in 1:ncol(test_subset4)){
+  m = sum(is.na(test_subset4[,i]))
+  print(paste("column ", colnames(test_subset4[i]), " has ", m , "missing values"))
+  if(m>0){
+    mvc = mvc+1
+  }else{
+    mvc
+  }
+}
+```
+
+```{r, include = FALSE}
+# train 
+mvc <- 0 
+for(i in 1:ncol(train_subset)){
+  m = sum(is.na(train_subset[,i]))
+  print(paste("column ", colnames(train_subset[i]), " has ", m , "missing values"))
+  if(m>0){
+    mvc = mvc+1
+  }else{
+    mvc
+  }
+}
+
+train_subset4 <- na.aggregate(train_subset)
+
+mvc <- 0 
+for(i in 1:ncol(train_subset4)){
+  m = sum(is.na(train_subset4[,i]))
+  print(paste("column ", colnames(train_subset4[i]), " has ", m , "missing values"))
+  if(m>0){
+    mvc = mvc+1
+  }else{
+    mvc
+  }
+}
+
+```
+
+```{r, include = FALSE, cache=TRUE}
+#install.packages("zoo")
+#library(zoo)
+#library(dplyr)
+out.rf <- randomForest(Price~.,
+                       data = train_subset4, importance=T)
+
+importance(out.rf)
+fitForest1 <- predict(out.rf, newdata = test_subset4)
+#fitForest1[1:10]
+#out.rf
+```
+
+
+```{r, include = FALSE, cache=TRUE}
+importance <- importance(out.rf)
+varImportance <- data.frame(Variables = row.names(importance),
+                            Importance = round(importance[, '%IncMSE'],2))
+rankImportance <- varImportance %>% mutate(Rank = paste0('#', dense_rank(desc(Importance))))
+
+print("Plot of variable importance")
+print("Variable importance of initial model")
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+                           y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+            hjust=0, vjust=0.55, size = 4, colour = 'red') +
+  labs(x = 'Variables') +
+  coord_flip() 
+```
+
+```{r, include = FALSE , cache=TRUE}
+first_SSE <- mean((fitForest1-test_subset4$Price)^2)
+first_SSE
+mean(train_subset4$Price)
+print("Inital prediction")
+#testy <- test_subset4[test_subset4$Price != max(test_subset4$Price)]
+plot(fitForest1,test_subset4$Price,
+     xlab="predicted",ylab="actual", xaxt="n")
+abline(a=0,b=1)
+```
+
+```{r, include = FALSE, cache=TRUE}
+ctrl_none <- trainControl(method = "none")
+grad_rf <- train(form = Price ~ .,   
+                 data = train_subset4,
+                 method = "rf",
+                 trControl = ctrl_none,
+                 tuneGrid = expand.grid(mtry = 2), 
+                 na.action=na.roughfix)
+
+price_rf_fit <- predict(grad_rf, newdata = test_subset4)
+```
+
+```{r, include = FALSE, cache = TRUE}
+bag_fit <- randomForest(Price ~ ., data = train_subset4, mtry = ncol(train_subset4) - 1, importance = TRUE)
+predict_bag_fit_price <- predict(bag_fit, newdata = test_subset4)
+#predict_bag_fit_price[1:10]
+```
+
+```{r, include = FALSE, cache = TRUE}
+# http://rstudio-pubs-static.s3.amazonaws.com/156481_80ee6ee3a0414fd38f5d3ad33d14c771.html
+boostPrice <- gbm(Price~.,train_subset4,distribution="gaussian",n.trees=5000,interaction.depth=4)
+summary(boostPrice)
+predict_boost_fit_price <- predict(boostPrice, newdata = test_subset4)
+```
+
+```{r, include = FALSE, cache = TRUE}
+combined_list <- list("Random Forest predictions: " = fitForest1[1:4], "Random Forest 2 predictions: " = price_rf_fit[1:4], "test_subset: " = test_subset4$Price[1:4], "Bag predictions: " = predict_bag_fit_price[1:4], "Boost predictions: " = predict_boost_fit_price[1:4])
+#combined_list
+#combined_list 
+```
+
+
+
+
+```{r, include = FALSE}
+library(tree)
+library(tidyverse)
+library(caret)
+#library(party)
+#library(partykit)
+# ![Caption for the picture.](~/csu/dsci445/project-10/marksSlides/avgPriceRFTrain.pdf)
+
+```
+
+
+
+
+# Slide 1 
+
+
+::: columns
+
+:::: column
+
+```{r,echo=FALSE, fig.width=6, fig.height=6, out.width='100%', fig.align='left'}
+#summary(tree_fit)#USE
+summary(tree_fit)#USE
+#tree_fit
+tree_fit
+
+```
+
+::::
+
+:::
+
+
+# Slide 2
+
+
+::: columns
+
+:::: column
+
+
+```{r,echo=FALSE, fig.width=12, fig.height=12, out.width='100%'}
+plot(tree_fit)
+text(tree_fit, pretty = 0)
+```
+
+::::
+
+:::
+
+
+# Slide 3
+
+::: columns
+
+:::: column
+
+
+```{r,echo=FALSE, fig.width=12, fig.height=12, out.width='100%'}
+
+print("Plot of variable importance")
+print("Variable importance of model")
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+                           y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+            hjust=0, vjust=0.55, size = 4, colour = 'red') +
+  labs(x = 'Variables') +
+  coord_flip() 
+```
+
+
+::::
+
+
+:::
+
+
+# Slide 4
+
+
+::: columns
+
+:::: column
+
+```{r,echo=FALSE, fig.width=10, fig.height=10, out.width='80%'}
+#summary(tree_fit)#USE
+summary(boostPrice)
+#predict_boost_fit_price <- predict(boostPrice, newdata = test_subset4)
+```
+
+::::
+
+:::
+
+
+# Slide 5
+
+
+::: columns
+
+:::: column
+
+```{r,echo=FALSE}
+#summary(tree_fit)#USE
+#summary(boostPrice)
+#predict_boost_fit_price <- predict(boostPrice, newdata = test_subset4)
+combined_list
+```
+
+::::
+
+:::
+
+
+
+
