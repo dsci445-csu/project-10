@@ -12,12 +12,15 @@ output:
 # PACKAGES AND DEPENDENT CODE FROM CODE.RMD
 
 library(readr)
+library(knitr)
 library(ggplot2)
 library(leaps)
 library(glmnet)
 library(car)
 library(pls)
 library(dplyr)
+
+knitr::opts_chunk$set(dev = 'pdf')
 
 ```
 
@@ -373,25 +376,26 @@ The goal of our work in this project is to provide several candidate models for 
 
 # About the Data
 
-Our data comes from Trulia.com and can be found on Kaggle[1]. It's a house listing website like Zillow.com. In fact it was acquired by Zillow in 2015 for $3.5 billion dollars[2]. Buy the competition I guess? 
+Our data comes from Trulia.com and can be found on Kaggle[1]. It's a house listing website like Zillow.com. In fact it was acquired by Zillow in 2014 for $3.5 billion[2]. Buy the competition I guess? 
 
 The dataset contains houses listed on the site from Sep 1, 2019 to Oct 31, 2019. For each house there are several features listed describing location, bedrooms, bathrooms etc.
 
 Initially there were 30006 observations. Many features were not usable for prediction. These columns contained information such as "Unique House ID." After picking out the usable predictors and removing observations with missing information, the number of observations shrunk to 9999, which is still okay.
-
 
 [1] https://www.kaggle.com/promptcloud/real-estate-data-from-trulia
 [2] https://money.cnn.com/2014/07/28/real_estate/zillow-buys-trulia-for-3-5-billion/index.html
 
 # Problems with the Data
 
-Lack of Observations!
+A big issue we ran into in analysis was the lack of observations for nominal predictors. For example in the California subset there was only one house with 36 bathrooms. This was an especially challenging observation when it came to leaving out a test-set of our data, because if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms.
+
+
 
 # Subsets
 
 We elected to subset the data at both City and State levels. This was based on the assumption that housing markets tend to be more local than national. 
 
-For example I'm from Albuquerque, New Mexico where houses are quite expensive despite the low income levels of the population. This is starkly different from a place like Waco, Texas where houses are pretty cheap despite sometimes being quite large. 
+For example I'm from Albuquerque, New Mexico where houses are quite expensive despite the low income levels of the population. This is starkly different from a place like Waco, Texas where houses are pretty cheap despite sometimes being quite large and otherwise Texas-y.
 
 By subsetting our data into observations only from certain states and cities, we are able to create models with data that are more similar to those that will be used with the model.
 
@@ -399,11 +403,37 @@ The subset we choose were California, Los Angeles, Colorado, and Denver.
 
 # Data Transformations for Linear Models
 
-```{r,echo=FALSE, fig.width=4, fig.height=4}
+In order to fit linear regression models (and their generalizations) to the data, it was best to perform a few transformations first. This definitely has an impact on interpretability, but since our goal is prediction we chose not to care too much.
 
-plot(base_lm_ca,c(1,2))
+Most notably, for the linear models, we predicted the log(`Price`) instead of `Price`. Likewise we transformed some predictors by taking their log (mostly for those that represented prices e.g. last tax assessment, last sold for etc.), and others by taking their square-root.
+
+This wasn't a perfect solution of course, but by fitting a linear regression model predicting log(`Price`) by all of the transformed predictors for the California subset we get the following diagnostic plots:
+
+# Data Transformations for Linear Models
+
+::: columns
+
+:::: column
+
+```{r,echo=FALSE, fig.width=6, fig.height=6}
+
+plot(base_lm_ca,c(1))
 
 ```
+
+::::
+
+:::: column
+
+```{r,echo=FALSE, fig.width=6, fig.height=6}
+
+plot(base_lm_ca,c(2))
+
+```
+
+::::
+
+:::
 
 # Linear Models
 
