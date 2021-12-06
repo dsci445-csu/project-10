@@ -416,7 +416,7 @@ Initially there were 30006 observations. Many features were not usable for predi
 
 # Problems with the Data
 
-An issue we ran into in analysis was a lack of similar observations. For example in the California subset there was only one house with 36 bathrooms, so when it came to leaving out a test-set of our data if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms. Shrinkage methods however seemed to be robust against this issue. I'm not totally sure why. The same thing is true for some numeric variables.
+An issue we ran into in analysis was a lack of similar observations. For example in the California subset there was only one house with 36 bathrooms, so when it came to leaving out a test-set of our data if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms. The same thing is true for some numeric variables. Shrinkage methods however seemed to be robust against this issue. I'm not totally sure why. 
 
 Another analytical issue we ran into was perfect collinearity between dummy variables. When you have multiple categorical predictors weird things can happen where one column of your model matrix $\textbf{X}$ is a linear combination of other columns and so least squares isn't possible, since $\textbf{X}$ doesn't have an inverse. The only solution I found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. city and zipcode were sometimes perfectly collinear. Lack of observations was also probably a contributing factor to this issue.
 
@@ -540,3 +540,31 @@ cat("Price Range DEN: ",range(den$Price),"\n")
 ```
 
 Not having enough observations is probably a difficult problem to overcome. I'm not sure if removing so much data at the start for having missing features was a smart move. Maybe I should have looked closer at what information was missing and decided to remove predictors rather than observations.
+
+# Linear Models Conclusions
+
+Another reason could be that a linear fit worked better for that subset of data e.g. for Denver:
+
+::: columns
+
+:::: column
+
+```{r,echo=FALSE, fig.width=6, fig.height=6}
+
+plot(base_lm_den,c(1))
+
+```
+
+::::
+
+:::: column
+
+```{r,echo=FALSE, fig.width=6, fig.height=6}
+
+plot(base_lm_den,c(2))
+
+```
+
+::::
+
+:::
