@@ -6,6 +6,11 @@ output: pdf_document
 
 library(readr)
 library(ggplot2)
+library(leaps)
+library(glmnet)
+library(car)
+library(pls)
+library(dplyr)
 
 ```
 
@@ -53,7 +58,7 @@ re$PriceSqrFt <- parse_number(re$PriceSqrFt)
 
 # Visualize Relationships
 
-I just did transformations on each original plot instead of making a new plot for each, just incase you're confused why the plots are already using transformed data.
+I just did transformations on each original plot instead of making a new plot for each, just in case you're confused why the plots are already using transformed data.
 
 ```{r}
 
@@ -122,7 +127,7 @@ ggplot(data=re,aes(x=State,y=log(Price))) +
 
 # Zip
 
-ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
+# ggplot(data=re,aes(x=Zipcode,y=Price)) + geom_boxplot()
 
 # Days On Trulia
 
@@ -136,24 +141,6 @@ Consider not using PriceSqrFt because I'm pretty sure it's calculated directly f
 Last Sold Year and Last Tax Year don't have a relationship with log price, which makes quite a bit of sense because house sales and taxes just happen.
 
 Ditto for Days on Trulia.
-
-# Potential Transformations for Linear Models
-
-```{r}
-
-# Remove PriceSqFt, Description and Address
-
-ret <- re[,c(-1,-10,-15)]
-
-# Transformations of total data set
-
-ret$Price <- log(re$Price)
-ret$SqrFt <- sqrt(re$SqrFt)
-ret$LotSize <- log(re$LotSize)
-ret$LastSoldFor <- log(re$LastSoldFor)
-ret$LastTaxAssestment <- log(re$LastTaxAssestment)
-
-```
 
 # Potential Subsets of Original Data
 
@@ -250,7 +237,7 @@ ggplot(data=ca,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-ca_t <- ca[,c(-14)]
+ca_t <- ca[,c(-7,-14,-15)]
 ca_t$Price <- log(ca_t$Price)
 ca_t$SqrFt <- sqrt(ca_t$SqrFt)
 ca_t$LotSize <- log(ca_t$LotSize)
@@ -345,7 +332,7 @@ ggplot(data=co,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-co_t <- co[,c(-12,-14)]
+co_t <- co[,c(-12,-14,-15)]
 co_t$Price <- log(co_t$Price)
 co_t$SqrFt <- sqrt(co_t$SqrFt)
 co_t$LotSize <- log(co_t$LotSize)
@@ -398,6 +385,7 @@ ggplot(data=co,aes(x=log(LastSoldFor),y=log(Price))) +
 
 # Last Tax Assestment
 
+
 ggplot(data=la,aes(x=log(LastTaxAssestment),y=log(Price))) +
   geom_point()
 
@@ -425,14 +413,13 @@ ggplot(data=la,aes(x=LastSoldYear,y=log(Price))) + geom_point()
 ggplot(data=la,aes(x=DaysOnTrulia,y=log(Price))) +
   geom_point()
 
-
 ```
 
 ## Transformations for LA
 
 ```{r}
 
-la_t <- la[,c(-13,-14)]
+la_t <- la[,c(-7,-13,-14,-15)]
 la_t$Price <- log(la_t$Price)
 la_t$SqrFt <- sqrt(la_t$SqrFt)
 la_t$LotSize <- log(la_t$LotSize)
@@ -519,7 +506,7 @@ ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
 
 ```{r}
 
-den_t <- den[,c(-12,-13,-14)]
+den_t <- den[,c(-12,-13,-14,-15)]
 den_t$Price <- log(den_t$Price)
 den_t$SqrFt <- sqrt(den_t$SqrFt)
 den_t$LotSize <- log(den_t$LotSize)
@@ -530,42 +517,328 @@ den_t$LastTaxAssestment <- log(den_t$LastTaxAssestment)
 
 # Linear Models formulated/evaluated via 10-fold CV
 
-Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variable measurements are of the same house at two different times i.e. Price Now, Price last sold for.
+Note in the paper that Shrinkage Methods such as Lasso and Ridge will help reduce potential variance increase issues due to multicollinearity. Multicollinearity is probably present here since many variable measurements are of the same house at two different times i.e. Price Now, Price last sold for, last tax adjustment. Although I don't see how multicollinearity would be a problem for prediction exactly, maybe it wouldn't be.
 
-Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV as model evaluator instead of training RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV as well. Afterwards consider step function and spline GAMs if Mark hasn't gotten to those already.
+Note for Tomorrow, 12/1/21: Consider train function from caret package. Also consider doing LOOCV seeing as we have lots of time (sorta). Need to figure out how to do best subset selection using LOOCV or 10-fold as model evaluator instead of training RSS. See homework 4 as reference for lasso and ridge, remember that they are parameterized models so need to choose lambda (or whatever its called) by CV, and indeed this is the main analysis. Afterwards use above visualizations to justify addition of polynomial terms to models and test those by LOOCV or 10-fold as well. Afterwards consider step function and spline GAMs if someone hasn't gotten to those already.
+
+Zipcode maybe should be excluded as a predictor because it is perfectly collinear with some other variable (most likely a city). I think this happens because there aren't enough observations in the city that are outside of the zipcode or the zipcode encapsulates the entire city.
+
+I decided (I think) just to do a "best" subset model based on my visualization instead, and a linear regression wtih all the predictors. In the slides we can talk about what a pain in the ass best subset selection is. Frankly, I don't think it's worth it, maybe ever the Lasso and Ridge are just so much easier for basically the same functionality. Or we could do it but idk.
+
+When there is only a few observations for a certain factor level all of them can get left out of the training set, which is problematic because then we can't actually predict on them.
 
 ```{r}
+
+multico_mod_ca <- lm(Price~.,data=ca_t)
+vif(multico_mod_ca)
+
+multico_mod_co <- lm(Price~.,data=co_t)
+vif(multico_mod_co)
+
+multico_mod_la <- lm(Price~.,data=la_t)
+vif(multico_mod_la)
+
+multico_mod_den <- lm(Price~.,data=den_t)
+vif(multico_mod_den)
+
+```
+
+```{r}
+
+k <- 10
+lambda <- 10^seq(-4,10,length.out=1000)
+
+```
+
+For California I removed Zipcode and Bathroom and this solved the perfect collinearity issues.
+
+```{r}
+
+set.seed(420)
 
 # California
 
+n <- nrow(ca_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
 
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+# Base Model
+
+base_lm_ca <- lm(Price~.,data=ca_t[trn,c(-6,-12)])
+aliasMatrixCA <- alias(base_lm_ca)$Complete
+vif(base_lm_ca)
+
+pred_base_ca <- predict(base_lm_ca,ca_t[!trn,c(-6,-12)])
+mse_base_ca <- mean((ca_t[!trn,c(-6,-12)]$Price - pred_base_ca)^2)
+mse_base_ca
+
+# Ridge
+
+cv_ridge_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=cv_ridge_ca$lambda.min)
+pred_ridge_ca <- predict(ridge_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_ridge_ca <- mean((ca_t[!trn,]$Price - pred_ridge_ca)^2)
+mse_ridge_ca
+
+# Lasso
+
+cv_lasso_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=cv_lasso_ca$lambda.min)
+pred_lasso_ca <- predict(lasso_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_lasso_ca <- mean((ca_t[!trn,]$Price - pred_lasso_ca)^2)
+mse_lasso_ca
+
+# PCR
+
+cv_pcr_ca <- pcr(Price ~ ., data = ca_t[trn,c(-6,-7,-12,-13)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_ca <- pcr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_ca <- predict(pcr_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_ca <- mean((ca_t[!trn,]$Price - pred_pcr_ca)^2)
+mse_pcr_ca
+
+# PLS
+
+cv_pls_ca <- plsr(Price ~ ., data = ca_t[trn, c(-6,-7,-12,-13)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_ca <- plsr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pls_ca <- predict(pls_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pls_ca <- mean((ca_t[!trn,]$Price - pred_pls_ca)^2)
+mse_pls_ca
 
 ```
 
+# Inverse Transforms
+
 ```{r}
+
+sqrt(mean((exp(ca_t[!trn,c(-6,-12)]$Price) - exp(pred_base_ca))^2))
+
+sqrt(mean((exp(ca_t[!trn,]$Price) - exp(pred_lasso_ca))^2))
+
+```
+
+For Colorado I only needed to remove zipcode to solve the collinearity issues.
+
+```{r}
+
+set.seed(420)
 
 # Colorado
 
+n <- nrow(co_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
 
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+# Base Model
+
+base_lm_co <- lm(Price~.,data=co_t[trn,c(-6,-7,-12)])
+aliasMatrixCO <- alias(base_lm_co)$Complete
+vif(base_lm_co)
+
+pred_base_co <- predict(base_lm_co,co_t[!trn,c(-6,-7,-12)])
+mse_base_co <- mean((co_t[!trn,c(-6,-7,-12)]$Price - pred_base_co)^2)
+mse_base_co
+
+# Ridge
+
+cv_ridge_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_co <- predict(ridge_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_ridge_co <- mean((co_t[!trn,]$Price - pred_ridge_co)^2)
+mse_ridge_co
+
+# Lasso
+
+cv_lasso_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_co <- predict(lasso_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_lasso_co <- mean((co_t[!trn,]$Price - pred_lasso_co)^2)
+mse_lasso_co
+
+# PCR
+
+cv_pcr_co <- pcr(Price ~ ., data = co_t[trn,c(-6,-7,-12)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_co <- pcr(Price ~., data = co_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_co <- predict(pcr_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_co <- mean((co_t[!trn,]$Price - pred_pcr_co)^2)
+mse_pcr_co
+
+# PLS
+
+cv_pls_co <- plsr(Price ~ ., data = co_t[trn, c(-6,-7,-12)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_co <- plsr(Price ~., data = co_t[trn,c(-6,-7,-12)], scale=TRUE, M=M)
+pred_pls_co <- predict(pls_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12)])[!trn,-1])
+
+mse_pls_co <- mean((co_t[!trn,]$Price - pred_pls_co)^2)
+mse_pls_co
 
 ```
 
+For LA I removed Zipcode and Bathroom and this solved the perfect collinearity issues.
+
 ```{r}
+
+set.seed(420)
 
 # Los Angeles
 
+n <- nrow(la_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
 
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+# Base Model
+
+base_lm_la <- lm(Price~.,data=la_t[trn,c(-6,-11)])
+aliasMatrixLA <- alias(base_lm_la)$Complete
+vif(base_lm_la)
+
+pred_base_la <- predict(base_lm_la,la_t[!trn,c(-6,-11)])
+mse_base_la <- mean((la_t[!trn,c(-6,-12)]$Price - pred_base_la)^2)
+mse_base_la
+
+# Ridge
+
+cv_ridge_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=cv_ridge_la$lambda.min)
+pred_ridge_la <- predict(ridge_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_ridge_la <- mean((la_t[!trn,]$Price - pred_ridge_la)^2)
+mse_ridge_la
+
+# Lasso
+
+cv_lasso_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=cv_lasso_la$lambda.min)
+pred_lasso_la <- predict(lasso_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_lasso_la <- mean((la_t[!trn,]$Price - pred_lasso_la)^2)
+mse_lasso_la
+
+# PCR
+
+cv_pcr_la <- pcr(Price ~ ., data = la_t[trn,c(-6,-11)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_la <- pcr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pcr_la <- predict(pcr_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pcr_la <- mean((la_t[!trn,]$Price - pred_pcr_la)^2)
+mse_pcr_la
+
+# PLS
+
+cv_pls_la <- plsr(Price ~ ., data = la_t[trn, c(-6,-11)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_la <- plsr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pls_la <- predict(pls_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pls_la <- mean((la_t[!trn,]$Price - pred_pls_la)^2)
+mse_pls_la
 
 ```
+
+For Denver I only needed to remove Zipcode to solve the collinearity issues.
 
 ```{r}
 
+set.seed(420)
+
 # Denver
 
+n <- nrow(den_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
 
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+# Base Model
+
+base_lm_den <- lm(Price~.,data=den_t[trn,c(-6,-7)])
+aliasMatrixDEN <- alias(base_lm_den)$Complete
+vif(base_lm_den)
+
+pred_base_den <- predict(base_lm_den,den_t[!trn,c(-6,-7)])
+mse_base_den <- mean((den_t[!trn,c(-6,-7)]$Price - pred_base_den)^2)
+mse_base_den
+
+# Ridge
+
+cv_ridge_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_den <- predict(ridge_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_ridge_den <- mean((den_t[!trn,]$Price - pred_ridge_den)^2)
+mse_ridge_den
+
+# Lasso
+
+cv_lasso_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_den <- predict(lasso_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_lasso_den <- mean((den_t[!trn,]$Price - pred_lasso_den)^2)
+mse_lasso_den
+
+# PCR
+
+cv_pcr_den <- pcr(Price ~ ., data = den_t[trn,c(-6,-7)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_den <- pcr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pcr_den <- predict(pcr_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pcr_den <- mean((den_t[!trn,]$Price - pred_pcr_den)^2)
+mse_pcr_den
+
+# PLS
+
+cv_pls_den <- plsr(Price ~ ., data = den_t[trn, c(-6,-7)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_den <- plsr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pls_den <- predict(pls_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pls_den <- mean((den_t[!trn,]$Price - pred_pls_den)^2)
+mse_pls_den
 
 ```
-
 
 
 # Code for Appendix (if it is needed for appendix in slides and paper)

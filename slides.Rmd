@@ -2,23 +2,465 @@
 title: "Housing Price Prediction from Trulia.com Data"
 author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
 date: "12/06/21"
-output: slidy_presentation
+output:
+  beamer_presentation: default
+  slidy_presentation: default
 ---
 
 ```{r, include=FALSE}
 
+# PACKAGES AND DEPENDENT CODE FROM CODE.RMD
+
+library(readr)
+library(knitr)
 library(ggplot2)
+library(leaps)
+library(glmnet)
+library(car)
+library(pls)
+library(dplyr)
+
+knitr::opts_chunk$set(dev = 'pdf')
 
 ```
 
-## Slide 1
+```{r, include=FALSE}
 
-```{r, echo=FALSE}
+# read in data
+re <- read_csv("./realEstate.csv")
 
-ggplot()
+# get rid of useless columns
+re <- re[,c(-(1:4),-7,-8,-12,-18,-(27:29),-(31:68))]
+
+# remove observations with missing data
+re <- na.omit(re)
+
+# make better var names
+names(re) <- gsub(" ","", names(re))
+
+# remove unit labels and dollar signs
+re$Price <- parse_number(re$Price)
+re$SqrFt <- parse_number(re$SqrFt)
+
+inSqft <- rep(NA,length(re$LotSize))
+for (i in 1:length(re$LotSize)) {
+  if (grepl("sqft",re$LotSize[i],fixed=TRUE)) {
+    inSqft[i] <- TRUE
+  } else {
+    inSqft[i] <- FALSE
+  }
+}
+re$LotSize <- parse_number(re$LotSize)
+for (i in 1:length(re$LotSize)) {
+  if (inSqft[i]) {
+    re$LotSize[i] <- re$LotSize[i]*(1/43560)
+  }
+}
+
+re$Bath <- as.factor(re$Bath)
+re$Beds <- as.factor(re$Beds)
+
+re$LastSoldFor <- parse_number(re$LastSoldFor)
+re$LastTaxAssestment <- parse_number(re$LastTaxAssestment)
+re$PriceSqrFt <- parse_number(re$PriceSqrFt)
 
 ```
 
-## Slide 2
+```{r, include=FALSE}
+
+ca <- re[re$State == "CA",c(-1,-10,-15)]
+co <- re[re$State == "CO",c(-1,-10,-15)]
+la <- re[re$City == "Los Angeles",c(-1,-10,-15)]
+den <- re[re$City == "Denver",c(-1,-10,-15)]
+
+```
+
+```{r, include=FALSE}
+
+ca_t <- ca[,c(-7,-14,-15)]
+ca_t$Price <- log(ca_t$Price)
+ca_t$SqrFt <- sqrt(ca_t$SqrFt)
+ca_t$LotSize <- log(ca_t$LotSize)
+ca_t$LastSoldFor <- log(ca_t$LastSoldFor)
+ca_t$LastTaxAssestment <- log(ca_t$LastTaxAssestment)
+ca_t$LastTaxYear <- as.factor(ca_t$LastTaxYear)
+
+co_t <- co[,c(-12,-14,-15)]
+co_t$Price <- log(co_t$Price)
+co_t$SqrFt <- sqrt(co_t$SqrFt)
+co_t$LotSize <- log(co_t$LotSize)
+co_t$LastSoldFor <- log(co_t$LastSoldFor)
+co_t$LastTaxAssestment <- log(co_t$LastTaxAssestment)
+
+la_t <- la[,c(-7,-13,-14,-15)]
+la_t$Price <- log(la_t$Price)
+la_t$SqrFt <- sqrt(la_t$SqrFt)
+la_t$LotSize <- log(la_t$LotSize)
+la_t$LastSoldFor <- log(la_t$LastSoldFor)
+la_t$LastTaxAssestment <- log(la_t$LastTaxAssestment)
+la_t$LastTaxYear <- as.factor(la_t$LastTaxYear)
+
+den_t <- den[,c(-12,-13,-14,-15)]
+den_t$Price <- log(den_t$Price)
+den_t$SqrFt <- sqrt(den_t$SqrFt)
+den_t$LotSize <- log(den_t$LotSize)
+den_t$LastSoldFor <- log(den_t$LastSoldFor)
+den_t$LastTaxAssestment <- log(den_t$LastTaxAssestment)
+
+```
+
+```{r,include=FALSE}
+
+k <- 10
+lambda <- 10^seq(-4,10,length.out=1000)
+
+set.seed(420)
+
+# California
+
+n <- nrow(ca_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_ca <- lm(Price~.,data=ca_t[trn,c(-6,-12)])
+aliasMatrixCA <- alias(base_lm_ca)$Complete
+vif(base_lm_ca)
+
+pred_base_ca <- predict(base_lm_ca,ca_t[!trn,c(-6,-12)])
+mse_base_ca <- mean((ca_t[!trn,c(-6,-12)]$Price - pred_base_ca)^2)
+
+## Ridge
+
+cv_ridge_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=cv_ridge_ca$lambda.min)
+pred_ridge_ca <- predict(ridge_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_ridge_ca <- mean((ca_t[!trn,]$Price - pred_ridge_ca)^2)
+
+## Lasso
+
+cv_lasso_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=cv_lasso_ca$lambda.min)
+pred_lasso_ca <- predict(lasso_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_lasso_ca <- mean((ca_t[!trn,]$Price - pred_lasso_ca)^2)
+
+## PCR
+
+cv_pcr_ca <- pcr(Price ~ ., data = ca_t[trn,c(-6,-7,-12,-13)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_ca <- pcr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_ca <- predict(pcr_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_ca <- mean((ca_t[!trn,]$Price - pred_pcr_ca)^2)
+
+## PLS
+
+cv_pls_ca <- plsr(Price ~ ., data = ca_t[trn, c(-6,-7,-12,-13)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_ca <- plsr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pls_ca <- predict(pls_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pls_ca <- mean((ca_t[!trn,]$Price - pred_pls_ca)^2)
+
+errors_ca <- c(mse_base_ca,mse_ridge_ca,mse_lasso_ca,mse_pcr_ca,mse_pls_ca)
+
+```
+
+```{r, include=FALSE}
+
+# Colorado
+
+n <- nrow(co_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_co <- lm(Price~.,data=co_t[trn,c(-6,-7,-12)])
+aliasMatrixCO <- alias(base_lm_co)$Complete
+vif(base_lm_co)
+
+pred_base_co <- predict(base_lm_co,co_t[!trn,c(-6,-7,-12)])
+mse_base_co <- mean((co_t[!trn,c(-6,-7,-12)]$Price - pred_base_co)^2)
+
+## Ridge
+
+cv_ridge_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_co <- predict(ridge_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_ridge_co <- mean((co_t[!trn,]$Price - pred_ridge_co)^2)
+
+## Lasso
+
+cv_lasso_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_co <- predict(lasso_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_lasso_co <- mean((co_t[!trn,]$Price - pred_lasso_co)^2)
+
+## PCR
+
+cv_pcr_co <- pcr(Price ~ ., data = co_t[trn,c(-6,-7,-12)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_co <- pcr(Price ~., data = co_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_co <- predict(pcr_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_co <- mean((co_t[!trn,]$Price - pred_pcr_co)^2)
+
+## PLS
+
+cv_pls_co <- plsr(Price ~ ., data = co_t[trn, c(-6,-7,-12)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_co <- plsr(Price ~., data = co_t[trn,c(-6,-7,-12)], scale=TRUE, M=M)
+pred_pls_co <- predict(pls_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12)])[!trn,-1])
+
+mse_pls_co <- mean((co_t[!trn,]$Price - pred_pls_co)^2)
+
+errors_co <- c(mse_base_co,mse_ridge_co,mse_lasso_co,mse_pcr_co,mse_pls_co)
+
+```
+
+```{r, include=FALSE}
+
+# Los Angeles
+
+n <- nrow(la_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_la <- lm(Price~.,data=la_t[trn,c(-6,-11)])
+aliasMatrixLA <- alias(base_lm_la)$Complete
+vif(base_lm_la)
+
+pred_base_la <- predict(base_lm_la,la_t[!trn,c(-6,-11)])
+mse_base_la <- mean((la_t[!trn,c(-6,-12)]$Price - pred_base_la)^2)
+
+## Ridge
+
+cv_ridge_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=cv_ridge_la$lambda.min)
+pred_ridge_la <- predict(ridge_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_ridge_la <- mean((la_t[!trn,]$Price - pred_ridge_la)^2)
+
+## Lasso
+
+cv_lasso_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=cv_lasso_la$lambda.min)
+pred_lasso_la <- predict(lasso_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_lasso_la <- mean((la_t[!trn,]$Price - pred_lasso_la)^2)
+
+## PCR
+
+cv_pcr_la <- pcr(Price ~ ., data = la_t[trn,c(-6,-11)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_la <- pcr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pcr_la <- predict(pcr_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pcr_la <- mean((la_t[!trn,]$Price - pred_pcr_la)^2)
+
+## PLS
+
+cv_pls_la <- plsr(Price ~ ., data = la_t[trn, c(-6,-11)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_la <- plsr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pls_la <- predict(pls_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pls_la <- mean((la_t[!trn,]$Price - pred_pls_la)^2)
+
+errors_la <- c(mse_base_la,mse_ridge_la,mse_lasso_la,mse_pcr_la,mse_pls_la)
+
+```
+
+```{r, include=FALSE}
+
+# Denver
+
+n <- nrow(den_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_den <- lm(Price~.,data=den_t[trn,c(-6,-7)])
+aliasMatrixDEN <- alias(base_lm_den)$Complete
+vif(base_lm_den)
+
+pred_base_den <- predict(base_lm_den,den_t[!trn,c(-6,-7)])
+mse_base_den <- mean((den_t[!trn,c(-6,-7)]$Price - pred_base_den)^2)
+
+## Ridge
+
+cv_ridge_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_den <- predict(ridge_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_ridge_den <- mean((den_t[!trn,]$Price - pred_ridge_den)^2)
+
+## Lasso
+
+cv_lasso_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_den <- predict(lasso_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_lasso_den <- mean((den_t[!trn,]$Price - pred_lasso_den)^2)
+
+## PCR
+
+cv_pcr_den <- pcr(Price ~ ., data = den_t[trn,c(-6,-7)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_den <- pcr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pcr_den <- predict(pcr_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pcr_den <- mean((den_t[!trn,]$Price - pred_pcr_den)^2)
+
+## PLS
+
+cv_pls_den <- plsr(Price ~ ., data = den_t[trn, c(-6,-7)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_den <- plsr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pls_den <- predict(pls_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pls_den <- mean((den_t[!trn,]$Price - pred_pls_den)^2)
+
+errors_den <- c(mse_base_den,mse_ridge_den,mse_lasso_den,mse_pcr_den,mse_pls_den)
+
+```
+
+# Motivation
+
+Suppose you want to buy a house in Denver. You find a property that you like, but you want to know if it's a good deal.
+
+Now suppose you have a statistical model that predicts house prices in Denver. You plug in the features of your candidate house and get a price prediction back. You use this prediction to help determine if the house is property priced, overvalued, or undervalued.
+
+The goal of our work in this project is to provide several candidate models for housing price prediction.
+
+# About the Data
+
+Our data comes from Trulia.com and can be found on Kaggle[1]. It's a house listing website like Zillow.com. In fact it was acquired by Zillow in 2014 for $3.5 billion[2]. Buy the competition I guess? 
+
+The dataset contains houses listed on the site from Sep 1, 2019 to Oct 31, 2019. For each house there are several features listed describing location, bedrooms, bathrooms etc.
+
+Initially there were 30006 observations. Many features were not usable for prediction. These columns contained information such as "Unique House ID." After picking out the usable predictors and removing observations with missing information, the number of observations shrunk to 9999, which is still okay.
+
+[1] https://www.kaggle.com/promptcloud/real-estate-data-from-trulia
+[2] https://money.cnn.com/2014/07/28/real_estate/zillow-buys-trulia-for-3-5-billion/index.html
+
+# Problems with the Data
+
+An issue we ran into in analysis was the lack of observations for categorical predictors. For example in the California subset there was only one house with 36 bathrooms, so when it came to leaving out a test-set of our data if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms. Shrinkage methods however seemed to be robust against this issue. I'm not totally sure why.
+
+Another analytical issue we ran into was perfect collinearity between dummy variables. When you have multiple categorical predictors weird things can happen where one column of your model matrix $\textbf{X}$ is a linear combination of other columns and so least squares isn't possible, since $\textbf{X}$ doesn't have an inverse. The only solution I found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. city and zipcode were sometimes perfectly collinear. Lack of observations was also probably a contributing factor to this issue.
+
+# Subsets
+
+We elected to subset the data at both City and State levels. This was based on the assumption that housing markets tend to be more local than national. 
+
+For example I'm from Albuquerque, New Mexico where houses are quite expensive despite the low income levels of the population. This is starkly different from a place like Waco, Texas where houses are pretty cheap despite sometimes being quite large and otherwise Texas-y.
+
+By subsetting our data into observations only from certain states and cities, we are able to create models with data that are more similar to those that will be used with the model.
+
+The subset we choose were California, Los Angeles, Colorado, and Denver.
+
+# Criteria for Linear Model Fitting
+
+For each subset we made a 70%-30% training-testing split. This was because we wanted to test the models on observations in which it had not yet seen. For finding the best model parameters e.g. $\lambda$ for Ridge Regression and the Lasso, we used 10-fold cross validation. Predictive model performance was based on MSE from the test set. 
+
+The types of models I fit were: 
+
++ Multiple Linear Regression (with all real predictors)
++ Ridge Regression
++ The Lasso
++ Principal Component Regression
++ Partial Least Squares Regression
+
+Due to previously described issues, I didn't fit MLR with categorical predictors. Also, as far as I'm away it doesn't really make sense to fit PCR or PLSR with categorical predictors either, since taking a linear combination with dummy variables involved would be weird.
+
+# Data Transformations for Linear Models
+
+In order to fit linear regression models (and their generalizations) to the data, it was best to perform a few transformations first. This definitely has an impact on interpretability, but since our goal is prediction we chose not to care too much.
+
+Most notably, for the linear models, we predicted the log(`Price`) instead of `Price`. Likewise we transformed some predictors by taking their log (mostly for those that represented prices e.g. last tax assessment, last sold for etc.), and others by taking their square-root.
+
+This wasn't a perfect solution of course, but by fitting a linear regression model predicting log(`Price`) by all of the transformed predictors for the California subset we get the following diagnostic plots:
+
+# Data Transformations for Linear Models
+
+::: columns
+
+:::: column
+
+```{r,echo=FALSE, fig.width=6, fig.height=6}
+
+plot(base_lm_ca,c(1))
+
+```
+
+::::
+
+:::: column
+
+```{r,echo=FALSE, fig.width=6, fig.height=6}
+
+plot(base_lm_ca,c(2))
+
+```
+
+::::
+
+:::
+
+# Linear Models Results
+
+
+
+# Additive Polynomial and Step Function Terms
+
+
+
+# Trees
+
+
+
+# Hypothetical Application
 
 
