@@ -387,9 +387,9 @@ Initially there were 30006 observations. Many features were not usable for predi
 
 # Problems with the Data
 
-A big issue we ran into in analysis was the lack of observations for nominal predictors. For example in the California subset there was only one house with 36 bathrooms. This was an especially challenging observation when it came to leaving out a test-set of our data, because if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms.
+An issue we ran into in analysis was the lack of observations for categorical predictors. For example in the California subset there was only one house with 36 bathrooms, so when it came to leaving out a test-set of our data if that observation was in the test-set, we couldn't actually predict based on bathroom since our model didn't contain a house with 36 bathrooms. Shrinkage methods however seemed to be robust against this issue. I'm not totally sure why.
 
-
+Another analytical issue we ran into was perfect collinearity between dummy variables. When you have multiple categorical predictors weird things can happen where one column of your model matrix $\textbf{X}$ is a linear combination of other columns and so least squares isn't possible, since $\textbf{X}$ doesn't have an inverse. The only solution I found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. city and zipcode were sometimes perfectly collinear. Lack of observations was also probably a contributing factor to this issue.
 
 # Subsets
 
@@ -400,6 +400,20 @@ For example I'm from Albuquerque, New Mexico where houses are quite expensive de
 By subsetting our data into observations only from certain states and cities, we are able to create models with data that are more similar to those that will be used with the model.
 
 The subset we choose were California, Los Angeles, Colorado, and Denver.
+
+# Criteria for Linear Model Fitting
+
+For each subset we made a 70%-30% training-testing split. This was because we wanted to test the models on observations in which it had not yet seen. For finding the best model parameters e.g. $\lambda$ for Ridge Regression and the Lasso, we used 10-fold cross validation. Predictive model performance was based on MSE from the test set. 
+
+The types of models I fit were: 
+
++ Multiple Linear Regression (with all real predictors)
++ Ridge Regression
++ The Lasso
++ Principal Component Regression
++ Partial Least Squares Regression
+
+Due to previously described issues, I didn't fit MLR with categorical predictors. Also, as far as I'm away it doesn't really make sense to fit PCR or PLSR with categorical predictors either, since taking a linear combination with dummy variables involved would be weird.
 
 # Data Transformations for Linear Models
 
@@ -435,7 +449,7 @@ plot(base_lm_ca,c(2))
 
 :::
 
-# Linear Models
+# Linear Models Results
 
 
 
