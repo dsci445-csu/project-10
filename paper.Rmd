@@ -3,16 +3,44 @@ title: "Predicting House Price with Trulia.com Data"
 date: "12/16/21"
 author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
 output: pdf_document
+header-includes:
+  - \usepackage{setspace}
 ---
 
-# Motivation
+\newpage
+
+# Abstract
+
+\doublespacing
+
+The price of any commodity is often only an approximation of its true underlying value. As a result, humans, when making purchasing decisions, should take caution to avoid paying too much. It remains to find a useful dataset. In the case of real estate, datasets from house listing websites are plentiful; for our analysis we used a dataset from Trulia.com (PromptCloud & DataStock, 2019), which contains around 30000 house listing in the United States from September-October 2019. Statistical learning offers a well defined framework for assisting in decisions, by comparing houses considered for purchase with others that are similar. Our goal was to predict house listing price using Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression, Generalized Additive Models (Polynomial Regression, Step Functions), and Tree Based Methods. We subset the dataset by city and state based on the assumption that housing markets tend to be local; predicting price for homes in California, Colorado, Los Angeles, and Denver. Models were trained on 70% of the data, and predictive performance was evaluated with Mean Squared Error calculated from the remaining 30%. There was a primary problem with the data that caused issues in analysis, namely there weren't enough observations of houses that were similar to eachother. In hindsight this issue is quite obvious since house listing websites only list houses for sale, and most houses are not for sale. A contrasting dataset would be the Ames dataset (De Cock, 2011), which contains details about all houses, whether for sale or not. Ultimately the test MSE values obtained were too high to be useful for making house purchasing decisions.
+
+# Data Wrangling
+
+\doublespacing
 
 
 
-# Methodology
+# Statistical Methodology
+
+\doublespacing
 
 
 
 # Results
 
+\doublespacing
 
+
+
+# Conclusions
+
+\doublespacing
+
+
+
+# References
+
+De Cock, Dean. 2011. 'Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project.' Journal of Statistics Education, Volume 19, Number 3. Retrieved 12/14/2021 from (http://jse.amstat.org/v19n3/decock.pdf)
+
+PromptCloud, & DataStock, 2019. Real Estate Data From Trulia (Version 1). A house listing dataset from Trulia.com. Retrieved 12/14/2021 from (https://www.kaggle.com/promptcloud/real-estate-data-from-trulia)
