@@ -7,19 +7,96 @@ header-includes:
   - \usepackage{setspace}
 ---
 
+```{r setup, include=FALSE}
+
+# PACKAGES NEEDED
+
+library(readr)
+library(ggplot2)
+library(leaps)
+library(glmnet)
+library(car)
+library(pls)
+library(dplyr)
+library(knitr)
+
+```
+
 \newpage
 
 # Abstract
 
 \doublespacing
 
-The price of any commodity is often only an approximation of its true underlying value. As a result, humans, when making purchasing decisions, should take caution to avoid paying too much. It remains to find a useful dataset. In the case of real estate, datasets from house listing websites are plentiful; for our analysis we used a dataset from Trulia.com (PromptCloud & DataStock, 2019), which contains around 30000 house listing in the United States from September-October 2019. Statistical learning offers a well defined framework for assisting in decisions, by comparing houses considered for purchase with others that are similar. Our goal was to predict house listing price using Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression, Generalized Additive Models (Polynomial Regression, Step Functions), and Tree Based Methods. We subset the dataset by city and state based on the assumption that housing markets tend to be local; predicting price for homes in California, Colorado, Los Angeles, and Denver. Models were trained on 70% of the data, and predictive performance was evaluated with Mean Squared Error calculated from the remaining 30%. There was a primary problem with the data that caused issues in analysis, namely there weren't enough observations of houses that were similar to eachother. In hindsight this issue is quite obvious since house listing websites only list houses for sale, and most houses are not for sale. A contrasting dataset would be the Ames dataset (De Cock, 2011), which contains details about all houses, whether for sale or not. Ultimately the test MSE values obtained were too high to be useful for making house purchasing decisions.
+The price of any commodity is often only an approximation of its true underlying value. As a result, humans, when making purchasing decisions, should take caution to avoid paying too much. In the case of real estate commodities (i.e. houses), datasets from house listing websites are plentiful; for our analysis we used a dataset from Trulia.com (PromptCloud & DataStock, 2019), which contains around 30000 house listing in the United States from September-October 2019. Statistical learning offers a well defined framework for assisting in decisions, by comparing houses considered for purchase with others that are similar. Our goal was to predict house listing price using Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression, Generalized Additive Models (Polynomial Regression, Step Functions), and Tree Based Methods. We subset the dataset by city and state based on the assumption that housing markets tend to be local; predicting price for homes in California, Colorado, Los Angeles, and Denver. Models were trained on 70% of the data, and predictive performance was evaluated with Mean Squared Error calculated from the remaining 30%. There was a primary problem with the data that caused issues in analysis, namely there weren't enough observations of houses that were similar to eachother. In hindsight this issue is quite obvious since house listing websites only list houses for sale, and most houses are not for sale. A contrasting dataset would be the Ames dataset (De Cock, 2011), which contains details about all houses, whether for sale or not. Ultimately the test MSE values obtained were too high for our models to be considered useful in making house purchasing decisions.
 
 # Data Wrangling
 
+```{r, include=FALSE}
+
+# DATA WRANGLING CODE
+
+# read in data
+re <- read_csv("./realEstate.csv")
+
+# get rid of useless columns
+re <- re[,c(-(1:4),-7,-8,-12,-18,-(27:29),-(31:68))]
+
+# remove observations with missing data
+re <- na.omit(re)
+
+# make better var names
+names(re) <- gsub(" ","", names(re))
+
+# remove unit labels and dollar signs
+re$Price <- parse_number(re$Price)
+re$SqrFt <- parse_number(re$SqrFt)
+
+inSqft <- rep(NA,length(re$LotSize))
+for (i in 1:length(re$LotSize)) {
+  if (grepl("sqft",re$LotSize[i],fixed=TRUE)) {
+    inSqft[i] <- TRUE
+  } else {
+    inSqft[i] <- FALSE
+  }
+}
+re$LotSize <- parse_number(re$LotSize)
+for (i in 1:length(re$LotSize)) {
+  if (inSqft[i]) {
+    re$LotSize[i] <- re$LotSize[i]*(1/43560)
+  }
+}
+
+re$Bath <- as.factor(re$Bath)
+re$Beds <- as.factor(re$Beds)
+
+re$LastSoldFor <- parse_number(re$LastSoldFor)
+re$LastTaxAssestment <- parse_number(re$LastTaxAssestment)
+re$PriceSqrFt <- parse_number(re$PriceSqrFt)
+
+```
+
 \doublespacing
 
+The Trulia.com dataset (PromptCloud & DataStock, 2019) initially had 67 columns to consider as predictors, however many didn't have any predictive meaning i.e. `Unique House ID`. In addition, several predictors contained the same information as another, and several more were entirely composed of NA values. After the removal of these columns there were 18 potentially useful predictors. Two of these were `Address` and `Description`; we considered pulling additional features out of these e.g. an indicator if a description contained the word "beautiful," or street name. Given that there usually weren't multiple house listings on the same street, and beautiful is just word that anyone can use, we opted not to do these things. After pulling out useful predictors, we removed observations that had missing observations. In hindsight this may have been a mistake because as we will see in the methodology section below, we didn't end up using many predictors due to errors in analysis, so we could have potentially had more data. The remainder of the data cleaning consisted of removing unit labels, converting all `LotSize` observations to Acres as some were in SqrFt, getting rid of dollar signs, and making everything that should be a factor a factor, and everything else numeric.
 
+For linear models it was necessary to do several data transformations. MORE
+
+To see our exact data wrangling process view the code appendix below under "# DATA WRANGLING CODE"
+
+We now provide a brief summary of the dataset post cleaning for help in your understanding:
+
+```{r, echo=FALSE}
+
+
+
+```
+
+```{r, echo=FALSE}
+
+
+
+```
 
 # Statistical Methodology
 
@@ -27,11 +104,13 @@ The price of any commodity is often only an approximation of its true underlying
 
 
 
+An interesting error arose when performing multiple linear regression in which dummy variables for different categorial predictors caused linear dependencies in the design matrix.
+
 # Results
 
 \doublespacing
 
-
+The test-MSEs in log-price for each subset and method are given. In addtion we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
 
 # Conclusions
 
@@ -41,6 +120,16 @@ The price of any commodity is often only an approximation of its true underlying
 
 # References
 
+\singlespacing
+
 De Cock, Dean. 2011. 'Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project.' Journal of Statistics Education, Volume 19, Number 3. Retrieved 12/14/2021 from (http://jse.amstat.org/v19n3/decock.pdf)
 
 PromptCloud, & DataStock, 2019. Real Estate Data From Trulia (Version 1). A house listing dataset from Trulia.com. Retrieved 12/14/2021 from (https://www.kaggle.com/promptcloud/real-estate-data-from-trulia)
+
+
+
+# Code Appendix
+
+```{r show-code, ref.label = all_labels(), echo = TRUE, eval = FALSE}
+
+```
