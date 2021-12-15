@@ -570,7 +570,7 @@ plot(diag_lm_den,c(2))
 
 ```
 
-A note should be made about lack of predictive ability in general due to lack of observations. ADD MORE HERE
+A note should be made about lack of predictive ability in general due to lack of observations, especially at extreme ends of predictors. 
 
 # References
 
