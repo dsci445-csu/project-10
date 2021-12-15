@@ -25,6 +25,7 @@ library(car)
 library(pls)
 library(dplyr)
 library(knitr)
+library(skimr)
 
 ```
 
@@ -133,27 +134,39 @@ den_t$LastTaxAssestment <- log(den_t$LastTaxAssestment)
 
 \doublespacing
 
-Here is a brief summary of the datasets post-cleaning for help in understanding:
+Below is a brief summary of the datasets, post-cleaning, for help in understanding. Note the variables categorized by type:
 
 ```{r, echo=FALSE}
 
 # DATA SUMMARY
 
-
+skim(re)
 
 ```
 
-The Trulia.com dataset (PromptCloud & DataStock, 2019) initially had 67 columns to consider as predictors, however many didn't have any predictive meaning i.e. `Unique House ID`. In addition, several predictors contained the same information as another, and several more were entirely composed of NA values. After the removal of these columns there were 18 potentially useful predictors. Two of these were `Address` and `Description`; we considered pulling additional features out of these e.g. an indicator if a description contained the word "beautiful," or street name. Given that there usually weren't multiple house listings on the same street, and beautiful is just word that anyone can use, we opted not to do these things. After pulling out useful predictors, we removed observations that had missing observations. In hindsight this may have been a mistake because as we will see in the methodology section below, we didn't end up using many predictors due to errors in analysis, so we could have potentially had more data. The remainder of the data cleaning consisted of removing unit labels, converting all `LotSize` observations to Acres as some were in SqrFt, getting rid of dollar signs, and making everything that should be a factor a factor, and everything else numeric.
+The Trulia.com dataset (PromptCloud & DataStock, 2019) initially had 67 columns to consider as predictors, however many didn't have any predictive meaning i.e. `Unique House ID`. In addition, several predictors contained the same information as another, and several more were entirely composed of NA values. After the removal of these columns there were 18 potentially useful predictors. Two of these were `Address` and `Description`; we considered pulling additional features out of these e.g. an indicator if a description contained the word "beautiful," or street name. Given that there usually weren't multiple house listings on the same street, and beautiful is just word that anyone can use, we opted not to do these things. After pulling out useful predictors, we removed observations that had missing observations. In hindsight this may have been a mistake because as we will see in the methodology section below, we didn't end up using many predictors due to errors in analysis, so we could have potentially had more data. The remainder of the data cleaning consisted of removing unit labels, converting all `LotSize` observations to Acres as some were in SqrFt, getting rid of dollar signs, and making everything that should be a factor a factor (or character), and everything else numeric.
 
-For linear models it was necessary to do several data transformations. Most notably we predicted log(`Price`) instead of `Price`, however we were still able to get interpretable predictions via inverse transformations. In general for predictor variables that represented a dollar amount, a log transform worked well. For `SqrFt` taking the square root worked well. We did not transform time data e.g. years, because doing log(`Price`) was enough. It should be noted that we did look at potentially doing different transformations for different subsets, it just turned out that the same transformations worked for each. The following diagnostic plots for a multiple linear regression on all numeric predictors from the California subset, show that the transformations worked reasonably well at making a linear model have lower bias:
+For linear models it was necessary to do several data transformations. Most notably we predicted log(`Price`) instead of `Price`, however we were still able to get interpretable predictions via inverse transformations. In general for predictor variables that represented a dollar amount, a log transform worked well. For `SqrFt` taking the square root worked well. We did not transform time data e.g. `LastTaxYear`, because doing log(`Price`) was enough, also it doesn't really make sense to do so. It should be noted that we did look at potentially doing different transformations for different subsets, it just turned out that the same transformations worked for each. The following diagnostic plots for a multiple linear regression on all numeric predictors from the California subset, show that the transformations worked reasonably well at making a linear model have lower bias:
 
-```{r, echo=FALSE}
+```{r, include=FALSE}
+
+# MLR California on Transformed Numeric Predictors
+
+diag_lm_ca <- lm(Price~.,data=ca_t[,c(-6,-12)])
+
+```
+
+
+```{r, echo=FALSE, out.width="50%"}
 
 # DIAGNOSTIC PLOTS CALIFORNIA
 
-
+plot(diag_lm_ca,c(1))
+plot(diag_lm_ca,c(2))
 
 ```
+
+It's clear that a linear model would still not capture much of the true relationship between the predictors and price, which is why we decided to fit GAMs on the transformed dataset(s) as well.
 
 To see our exact data wrangling process view the code appendix below under "# DATA WRANGLING".
 
@@ -169,7 +182,7 @@ An interesting error arose when performing multiple linear regression in which d
 
 \doublespacing
 
-The test-MSEs in log-price for each subset and method are given. In addtion we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
+The test-MSEs in log-price for each subset and method are given. In addition we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
 
 # Conclusions
 
@@ -183,11 +196,7 @@ The test-MSEs in log-price for each subset and method are given. In addtion we p
 
 De Cock, Dean. 2011. 'Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project.' Journal of Statistics Education, Volume 19, Number 3. Retrieved 12/14/2021 from (http://jse.amstat.org/v19n3/decock.pdf)
 
----
-
 PromptCloud, & DataStock, 2019. Real Estate Data From Trulia (Version 1). A house listing dataset from Trulia.com. Retrieved 12/14/2021 from (https://www.kaggle.com/promptcloud/real-estate-data-from-trulia)
-
-
 
 # Code Appendix
 
