@@ -1,5 +1,5 @@
 ---
-title: "Predicting House Price with Trulia.com Data"
+title: "Predicting House Listing Price with Trulia.com Data"
 date: "12/16/21"
 author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
 output: 
@@ -196,8 +196,6 @@ folds <- sample(seq_len(k), n, replace = k != n)
 ## Base Model
 
 base_lm_ca <- lm(Price~.,data=ca_t[trn,c(-6,-12)])
-aliasMatrixCA <- alias(base_lm_ca)$Complete
-vif(base_lm_ca)
 
 pred_base_ca <- predict(base_lm_ca,ca_t[!trn,c(-6,-12)])
 mse_base_ca <- mean((ca_t[!trn,c(-6,-12)]$Price - pred_base_ca)^2)
@@ -267,8 +265,6 @@ folds <- sample(seq_len(k), n, replace = k != n)
 ## Base Model
 
 base_lm_co <- lm(Price~.,data=co_t[trn,c(-6,-7,-12)])
-aliasMatrixCO <- alias(base_lm_co)$Complete
-vif(base_lm_co)
 
 pred_base_co <- predict(base_lm_co,co_t[!trn,c(-6,-7,-12)])
 mse_base_co <- mean((co_t[!trn,c(-6,-7,-12)]$Price - pred_base_co)^2)
@@ -338,8 +334,6 @@ folds <- sample(seq_len(k), n, replace = k != n)
 ## Base Model
 
 base_lm_la <- lm(Price~.,data=la_t[trn,c(-6,-11)])
-aliasMatrixLA <- alias(base_lm_la)$Complete
-vif(base_lm_la)
 
 pred_base_la <- predict(base_lm_la,la_t[!trn,c(-6,-11)])
 mse_base_la <- mean((la_t[!trn,c(-6,-12)]$Price - pred_base_la)^2)
@@ -409,8 +403,6 @@ folds <- sample(seq_len(k), n, replace = k != n)
 ## Base Model
 
 base_lm_den <- lm(Price~.,data=den_t[trn,c(-6,-7)])
-aliasMatrixDEN <- alias(base_lm_den)$Complete
-vif(base_lm_den)
 
 pred_base_den <- predict(base_lm_den,den_t[!trn,c(-6,-7)])
 mse_base_den <- mean((den_t[!trn,c(-6,-7)]$Price - pred_base_den)^2)
@@ -485,7 +477,7 @@ Mark
 
 ## Linear Models
 
-The test-MSEs in log-price for each subset and method are given. In addition we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
+The test-MSEs in log-price for the best performing model in each subset is given. In addition we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
 
 ### California
 
@@ -543,7 +535,42 @@ Mark
 
 \doublespacing
 
+We see in the linear models that the RMSE values are certainly too high to consider any of the model useful. For example suppose you were looking at a house listed for \$400,000 dollars in Denver, and the model predicted a price of \$375,000. Knowing that the prediction is likely to be off by as much as \$151,153 (and perhaps more) would basically make the predicted value useless. That being said predictive accuracy in Colorado and Denver was comparatively much better than in California and Los Angeles. There are a few factors to consider here. Firstly, the range in Prices in the data subsets:
 
+```{r, echo=FALSE}
+
+cat("Price Range CA: ",range(ca$Price),"\n")
+cat("Price Range CO: ",range(co$Price),"\n")
+cat("Price Range LA: ",range(la$Price),"\n")
+cat("Price Range DEN: ",range(den$Price),"\n")
+
+```
+
+There is less variance in Price in general for the Colorado and Denver subsets, so it makes sense that test error would also be smaller, especially considering our lack of similar observations. Secondly, a linear fit, based on diagnostic plots, seems to fit the Colorado and Denver subsets somewhat better:
+
+### Colorado
+
+```{r, echo=FALSE, out.width="50%",warning=FALSE}
+
+diag_lm_co <- lm(Price~.,data=co_t[,c(-6,-12)])
+
+plot(diag_lm_co,c(1))
+plot(diag_lm_co,c(2))
+
+```
+
+### Denver
+
+```{r, echo=FALSE, out.width="50%",warning=FALSE}
+
+diag_lm_den <- lm(Price~.,data=den_t[,c(-6,-7)])
+
+plot(diag_lm_den,c(1))
+plot(diag_lm_den,c(2))
+
+```
+
+A note should be made about lack of predictive ability in general due to lack of observations. ADD MORE HERE
 
 # References
 
