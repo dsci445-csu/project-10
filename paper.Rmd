@@ -178,6 +178,293 @@ For each set of statistical models our goal was to approximate the true relation
 
 ## Linear Models
 
+```{r,include=FALSE}
+
+k <- 10
+lambda <- 10^seq(-4,10,length.out=1000)
+
+set.seed(420)
+
+# California
+
+n <- nrow(ca_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_ca <- lm(Price~.,data=ca_t[trn,c(-6,-12)])
+aliasMatrixCA <- alias(base_lm_ca)$Complete
+vif(base_lm_ca)
+
+pred_base_ca <- predict(base_lm_ca,ca_t[!trn,c(-6,-12)])
+mse_base_ca <- mean((ca_t[!trn,c(-6,-12)]$Price - pred_base_ca)^2)
+inv_base_ca <- mean((exp(ca_t[!trn,c(-6,-12)]$Price) - exp(pred_base_ca))^2)
+
+## Ridge
+
+cv_ridge_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=cv_ridge_ca$lambda.min)
+pred_ridge_ca <- predict(ridge_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_ridge_ca <- mean((ca_t[!trn,]$Price - pred_ridge_ca)^2)
+inv_ridge_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_ridge_ca))^2)
+
+## Lasso
+
+cv_lasso_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=cv_lasso_ca$lambda.min)
+pred_lasso_ca <- predict(lasso_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_lasso_ca <- mean((ca_t[!trn,]$Price - pred_lasso_ca)^2)
+inv_lasso_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_lasso_ca))^2)
+
+## PCR
+
+cv_pcr_ca <- pcr(Price ~ ., data = ca_t[trn,c(-6,-7,-12,-13)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_ca <- pcr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_ca <- predict(pcr_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_ca <- mean((ca_t[!trn,]$Price - pred_pcr_ca)^2)
+inv_pcr_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_pcr_ca))^2)
+
+## PLS
+
+cv_pls_ca <- plsr(Price ~ ., data = ca_t[trn, c(-6,-7,-12,-13)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_ca <- plsr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pls_ca <- predict(pls_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pls_ca <- mean((ca_t[!trn,]$Price - pred_pls_ca)^2)
+inv_pls_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_pls_ca))^2)
+
+errors_ca <- c(mse_base_ca,mse_ridge_ca,mse_lasso_ca,mse_pcr_ca,mse_pls_ca)
+inv_errors_ca <- c(inv_base_ca,inv_ridge_ca,inv_lasso_ca,inv_pcr_ca,inv_pls_ca)
+
+```
+
+```{r, include=FALSE}
+
+set.seed(420)
+
+# Colorado
+
+n <- nrow(co_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_co <- lm(Price~.,data=co_t[trn,c(-6,-7,-12)])
+aliasMatrixCO <- alias(base_lm_co)$Complete
+vif(base_lm_co)
+
+pred_base_co <- predict(base_lm_co,co_t[!trn,c(-6,-7,-12)])
+mse_base_co <- mean((co_t[!trn,c(-6,-7,-12)]$Price - pred_base_co)^2)
+inv_base_co <- mean((exp(co_t[!trn,c(-6,-12)]$Price) - exp(pred_base_co))^2)
+
+## Ridge
+
+cv_ridge_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_co <- predict(ridge_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_ridge_co <- mean((co_t[!trn,]$Price - pred_ridge_co)^2)
+inv_ridge_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_ridge_co))^2)
+
+## Lasso
+
+cv_lasso_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_co <- predict(lasso_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_lasso_co <- mean((co_t[!trn,]$Price - pred_lasso_co)^2)
+inv_lasso_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_lasso_co))^2)
+
+## PCR
+
+cv_pcr_co <- pcr(Price ~ ., data = co_t[trn,c(-6,-7,-12)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_co <- pcr(Price ~., data = co_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_co <- predict(pcr_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_co <- mean((co_t[!trn,]$Price - pred_pcr_co)^2)
+inv_pcr_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_pcr_co))^2)
+
+## PLS
+
+cv_pls_co <- plsr(Price ~ ., data = co_t[trn, c(-6,-7,-12)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_co <- plsr(Price ~., data = co_t[trn,c(-6,-7,-12)], scale=TRUE, M=M)
+pred_pls_co <- predict(pls_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12)])[!trn,-1])
+
+mse_pls_co <- mean((co_t[!trn,]$Price - pred_pls_co)^2)
+inv_pls_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_pls_co))^2)
+
+errors_co <- c(mse_base_co,mse_ridge_co,mse_lasso_co,mse_pcr_co,mse_pls_co)
+inv_errors_co <- c(inv_base_co,inv_ridge_co,inv_lasso_co,inv_pcr_co,inv_pls_co)
+
+```
+
+```{r, include=FALSE}
+
+set.seed(420)
+
+# Los Angeles
+
+n <- nrow(la_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_la <- lm(Price~.,data=la_t[trn,c(-6,-11)])
+aliasMatrixLA <- alias(base_lm_la)$Complete
+vif(base_lm_la)
+
+pred_base_la <- predict(base_lm_la,la_t[!trn,c(-6,-11)])
+mse_base_la <- mean((la_t[!trn,c(-6,-12)]$Price - pred_base_la)^2)
+inv_base_la <- mean((exp(la_t[!trn,c(-6,-12)]$Price) - exp(pred_base_la))^2)
+
+## Ridge
+
+cv_ridge_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=cv_ridge_la$lambda.min)
+pred_ridge_la <- predict(ridge_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_ridge_la <- mean((la_t[!trn,]$Price - pred_ridge_la)^2)
+inv_ridge_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_ridge_la))^2)
+
+## Lasso
+
+cv_lasso_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=cv_lasso_la$lambda.min)
+pred_lasso_la <- predict(lasso_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_lasso_la <- mean((la_t[!trn,]$Price - pred_lasso_la)^2)
+inv_lasso_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_lasso_la))^2)
+
+## PCR
+
+cv_pcr_la <- pcr(Price ~ ., data = la_t[trn,c(-6,-11)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_la <- pcr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pcr_la <- predict(pcr_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pcr_la <- mean((la_t[!trn,]$Price - pred_pcr_la)^2)
+inv_pcr_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_pcr_la))^2)
+
+## PLS
+
+cv_pls_la <- plsr(Price ~ ., data = la_t[trn, c(-6,-11)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_la <- plsr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pls_la <- predict(pls_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pls_la <- mean((la_t[!trn,]$Price - pred_pls_la)^2)
+inv_pls_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_pls_la))^2)
+
+errors_la <- c(mse_base_la,mse_ridge_la,mse_lasso_la,mse_pcr_la,mse_pls_la)
+inv_errors_la <- c(inv_base_la,inv_ridge_la,inv_lasso_la,inv_pcr_la,inv_pls_la)
+
+```
+
+```{r, include=FALSE}
+
+set.seed(420)
+
+# Denver
+
+n <- nrow(den_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_den <- lm(Price~.,data=den_t[trn,c(-6,-7)])
+aliasMatrixDEN <- alias(base_lm_den)$Complete
+vif(base_lm_den)
+
+pred_base_den <- predict(base_lm_den,den_t[!trn,c(-6,-7)])
+mse_base_den <- mean((den_t[!trn,c(-6,-7)]$Price - pred_base_den)^2)
+inv_base_den <- mean((exp(den_t[!trn,c(-6,-12)]$Price) - exp(pred_base_den))^2)
+
+## Ridge
+
+cv_ridge_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_den <- predict(ridge_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_ridge_den <- mean((den_t[!trn,]$Price - pred_ridge_den)^2)
+inv_ridge_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_ridge_den))^2)
+
+## Lasso
+
+cv_lasso_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_den <- predict(lasso_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_lasso_den <- mean((den_t[!trn,]$Price - pred_lasso_den)^2)
+inv_lasso_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_lasso_den))^2)
+
+## PCR
+
+cv_pcr_den <- pcr(Price ~ ., data = den_t[trn,c(-6,-7)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_den <- pcr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pcr_den <- predict(pcr_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pcr_den <- mean((den_t[!trn,]$Price - pred_pcr_den)^2)
+inv_pcr_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_pcr_den))^2)
+
+## PLS
+
+cv_pls_den <- plsr(Price ~ ., data = den_t[trn, c(-6,-7)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_den <- plsr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pls_den <- predict(pls_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pls_den <- mean((den_t[!trn,]$Price - pred_pls_den)^2)
+inv_pls_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_pls_den))^2)
+
+errors_den <- c(mse_base_den,mse_ridge_den,mse_lasso_den,mse_pcr_den,mse_pls_den)
+inv_errors_den <- c(inv_base_den,inv_ridge_den,inv_lasso_den,inv_pcr_den,inv_pls_den)
+
+```
+
 The line-based modeling methods considered include Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression. We recall that MLR minimizes residual sum of squares to find a best fitting line, and LASSO and Ridge perform a similar optimization however in each there is a penalty term which causes unnecessary $\beta_j$ values to shrink. The LASSO can force $\beta_j$ values to be exactly 0, whereas Ridge can only make them very small. Principal Component and Partial Least Squares regression are both dimension reduction techniques. In both cases multiple linear regression is performed not on the original predictors, but on linear combinations of the predictors.
 
 An interesting error arose when performing multiple linear regression in which dummy variables for different categorical predictors caused linear dependencies in the design matrix. The only solution we found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. `City` and `Zipcode` were sometimes perfectly collinear. This give some insight into the potential origin of this issue as there were likely some Cities and Zipcodes in the data that shared most of the same observations. Intuitively, having more observations could have solved this problem as well. Our decision to only predict on one of the factors seems reasonable in this instance. LASSO and Ridge regression seemed to not be affected by this issue, I'm not sure if this was the result of the R functions that we used automatically dropping dependencies like this, or if the optimization methods themselves were successful at making the $\beta_j$ values associated with these dummy variables so small that the issue didn't arise.
@@ -199,6 +486,50 @@ Mark
 ## Linear Models
 
 The test-MSEs in log-price for each subset and method are given. In addition we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
+
+### California
+
+The best performing model fit for the California subset was done with the LASSO:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_ca),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_ca)),"\n")
+
+```
+
+### Colorado
+
+The best performing model fit for the Colorado subset was done with Ridge Regression:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_co),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_co)),"\n")
+
+```
+
+### Los Angeles
+
+The best performing model fit for the Los Angeles subset was done with the LASSO:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_la),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_la)),"\n")
+
+```
+
+### Denver
+
+The best performing model fit for the Denver subset was done with Ridge Regression:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_den),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_den)),"\n")
+
+```
 
 ## Generalized Additive Models
 
