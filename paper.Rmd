@@ -8,10 +8,10 @@ output:
 header-includes:
   - \usepackage{setspace}
   - \usepackage{fontspec}
+  - \usepackage{amsmath}
 mainfont: Ubuntu
 monofont: Ubuntu Mono
 ---
-
 
 ```{r setup, include=FALSE}
 
@@ -166,7 +166,7 @@ plot(diag_lm_ca,c(2))
 
 ```
 
-It's clear that a linear model would still not capture much of the true relationship between the predictors and price, which is why we decided to fit GAMs on the transformed dataset(s) as well.
+It's clear that a linear model will not capture some of the true relationship between the transformed predictors and log(`Price`), which is why we decided to fit GAMs on the transformed dataset(s) as well.
 
 To see our exact data wrangling process view the code appendix below under "# DATA WRANGLING".
 
@@ -174,15 +174,39 @@ To see our exact data wrangling process view the code appendix below under "# DA
 
 \doublespacing
 
+For each set of statistical models our goal was to approximate the true relationship between the predictors in our dataset (PromptCloud, & DataStock, 2019) and list Price of houses. More formally we look for a function $\hat f(\mathbf{x})$ such that $\hat f(\mathbf{x})$ is a decent approximation of the truth as measured by predictive accuracy.
 
+## Linear Models
 
-An interesting error arose when performing multiple linear regression in which dummy variables for different categorical predictors caused linear dependencies in the design matrix.
+The line-based modeling methods considered include Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression. We recall that MLR minimizes residual sum of squares to find a best fitting line, and LASSO and Ridge perform a similar optimization however in each there is a penalty term which causes unnecessary $\beta_j$ values to shrink. The LASSO can force $\beta_j$ values to be exactly 0, whereas Ridge can only make them very small. Principal Component and Partial Least Squares regression are both dimension reduction techniques. In both cases multiple linear regression is performed not on the original predictors, but on linear combinations of the predictors.
+
+An interesting error arose when performing multiple linear regression in which dummy variables for different categorical predictors caused linear dependencies in the design matrix. The only solution we found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. `City` and `Zipcode` were sometimes perfectly collinear. This give some insight into the potential origin of this issue as there were likely some Cities and Zipcodes in the data that shared most of the same observations. Intuitively, having more observations could have solved this problem as well. Our decision to only predict on one of the factors seems reasonable in this instance. LASSO and Ridge regression seemed to not be affected by this issue, I'm not sure if this was the result of the R functions that we used automatically dropping dependencies like this, or if the optimization methods themselves were successful at making the $\beta_j$ values associated with these dummy variables so small that the issue didn't arise.
+
+As far as I'm aware it doesn't make any sense to use categorical predictors with dimension reduction techniques. Taking a linear combination of dummy variables would work mathematically, but would likely just produce a bad set of principal components as regressors.
+
+## Generalized Additive Models
+
+Nat
+
+## Tree Based Models
+
+Mark
 
 # Results
 
 \doublespacing
 
+## Linear Models
+
 The test-MSEs in log-price for each subset and method are given. In addition we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
+
+## Generalized Additive Models
+
+Nat
+
+## Tree Based Models
+
+Mark
 
 # Conclusions
 
