@@ -3,10 +3,10 @@ title: "Predicting House Listing Price with Trulia.com Data"
 author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
 date: "12/16/21"
 output:
-  html_document:
-    df_print: paged
   pdf_document:
     latex_engine: xelatex
+  html_document:
+    df_print: paged
 header-includes:
 - \usepackage{setspace}
 - \usepackage{fontspec}
@@ -28,16 +28,6 @@ library(pls)
 library(dplyr)
 library(knitr)
 library(skimr)
-
-
-library(readr)
-library(knitr)
-library(ggplot2)
-library(leaps)
-library(glmnet)
-library(car)
-library(pls)
-library(dplyr)
 
 library(ggpubr)
 library(boot)
@@ -475,9 +465,11 @@ inv_errors_den <- c(inv_base_den,inv_ridge_den,inv_lasso_den,inv_pcr_den,inv_pls
 
 The line-based modeling methods considered include Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression. We recall that MLR minimizes residual sum of squares to find a best fitting line, and LASSO and Ridge perform a similar optimization however in each there is a penalty term which causes unnecessary $\beta_j$ values to shrink. The LASSO can force $\beta_j$ values to be exactly 0, whereas Ridge can only make them very small. Principal Component and Partial Least Squares regression are both dimension reduction techniques. In both cases multiple linear regression is performed not on the original predictors, but on linear combinations of the predictors.
 
-An interesting error arose when performing multiple linear regression in which dummy variables for different categorical predictors caused linear dependencies in the design matrix. The only solution we found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. `City` and `Zipcode` were sometimes perfectly collinear. This give some insight into the potential origin of this issue as there were likely some Cities and Zipcodes in the data that shared most of the same observations. Intuitively, having more observations could have solved this problem as well. Our decision to only predict on one of the factors seems reasonable in this instance. LASSO and Ridge regression seemed to not be affected by this issue, I'm not sure if this was the result of the R functions that we used automatically dropping dependencies like this, or if the optimization methods themselves were successful at making the $\beta_j$ values associated with these dummy variables so small that the issue didn't arise.
+An interesting error arose when fitting these models in which dummy variables for different categorical predictors caused linear dependencies in the design matrix. The only solution we found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. `City` and `Zipcode` were sometimes perfectly collinear. This give some insight into the potential origin of this issue as there were likely some Cities and Zipcodes in the data that shared most of the same observations. Intuitively, having more observations could have solved this problem as well. Our decision to only predict on one of the factors seems reasonable in this instance. 
 
 As far as I'm aware it doesn't make any sense to use categorical predictors with dimension reduction techniques. Taking a linear combination of dummy variables would work mathematically, but would likely just produce a bad set of principal components as regressors.
+
+Another error arose as a result of our 70-30 training-test split. For some variables there weren't enough observations such that the entire range of data was captured in both the training and test split. The result of this is too fold. For example, in the California subset there was only one house (observation) for several levels of the `Bath` and `Beds` variable, if any of these observations ended up in the test set, then we couldn't actually predict based on that variable since our training model didn't account for it. LASSO and Ridge regression seemed to not be affected by this issue, I'm not sure if this was the result of the R functions dropping observations, or if the optimization methods themselves were successful at making the $\beta_j$ values associated with these dummy variables so small that the issue didn't arise.
 
 ## Generalized Additive Models
 
@@ -545,15 +537,12 @@ cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_den)),"\n")
 
 ```{r include=F}
 
-
-
 # Denver
 
 # SqFt
 
 dsqr <- ggplot(data=den,aes(x=SqrFt^(1/2),y=log(Price))) +
   geom_point()
-
 
 # Longitude and Latitude
 
@@ -634,8 +623,6 @@ dday <- ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
 #           ncol = 2, nrow = 2)
 
 ```
-
-
 
 ```{r include= FALSE}
 #CA
@@ -887,10 +874,6 @@ DNplotpolyyb <- ggplot(data=Denver,aes(x=YearBuilt,y=Price)) +
   stat_function(fun=fYB,color="red") +
   theme_bw()
 
-
-
-
-
 LS <- Denver$LotSize
 fitLS3 <- lm(Price ~ cut(LotSize, breaks = 10), data = Denver)
 rrange = range(LS)
@@ -901,8 +884,6 @@ DNplotsfls <- ggplot() +
   geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
   theme_bw()
 
-
-
 YB <- Denver$YearBuilt
 fitLS3 <- lm(Price ~ cut(YearBuilt, breaks = 4), data = Denver)
 rrange = range(YB)
@@ -912,8 +893,6 @@ DNplotsfyb <- ggplot() +
   geom_point(aes(YearBuilt,Price),data=Denver,alpha=0.2) +
   geom_line(aes(grid$YearBuilt, predict(fitLS3, grid)), colour = "red") +
   theme_bw()
-
-
 
 #LA
 LA <- la_t
@@ -1026,12 +1005,8 @@ latest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
 pred_polyCA_LS <- predict(CA_lmLS_poly, CA[catest, 5])
 pred_polyCA_YB <- predict(CA_lmYB_poly, CA[catest, 7])
 
-
 # pred_sfCA_LS <- predict(CA_lmLS_SF, CA[catest, 5])
 # pred_sfCA_YB <- predict(CA_lmYB_SF, CA[catest, 7])
-
-
-
 
 pred_polyCO_LS <- predict(CO_lmLS_poly, CO[cotest, 5])
 pred_polyCO_YB <- predict(CO_lmYB_poly, CO[cotest, 8])
@@ -1081,21 +1056,34 @@ The best performing model fit for the all four subgroup (California, Colorado, L
 
 
 ```{r, echo = F}
+
 cat("California: MSE (log(Price)): ",MSE_CALS,"\n")
 cat("Colorado: MSE (log(Price)): ",MSE_COLS,"\n")
 cat("Los Angeles: MSE (log(Price)): ",MSE_DNLS,"\n")
 cat("Denver: MSE (log(Price)): ",MSE_LALS, "\n")
 
-
-
 ```
 
 <!-- Nat changed ended -->
 
-
 ## Tree Based Models
 
-Mark
+I was responsible for exploring the performance of tree based models like decision trees, random forests, bagging, and boosting.
+
+Due to my inability to run my code, some of my analysis is unable to be replicated.  
+
+Some of the best models I created used bagging and boosting.  
+
+Of note, the random forest model had lower MSE and explained more of the variance. 
+
+
+<!-- ![Caption for the picture](firstPic.png) -->
+<!-- ![Caption for the picture](secondPic.png) -->
+<!-- ![Caption for the picture](thirdPic.png) -->
+
+One clear trend between all three listed models is the similarity between the most influential variables.  All three of the models had similar variables, though they were often in different orders of importance. 
+
+As stated, I had some trouble re-running my code, and so I'm including a picture that contains the first 6 elements in each of my models and the test data set.  I know this isn't an accurate representation of the actual values of the data, but it does show the relationship between the first elements of my models and test data set. 
 
 # Conclusions
 
@@ -1136,7 +1124,7 @@ plot(diag_lm_den,c(2))
 
 ```
 
-A note should be made about lack of predictive ability in general due to lack of observations, especially at extreme ends of predictors. 
+However it is important to remember that the predictive accuracy for Colorado and Denver was still bad. As previously noted, we think this is because of a pure lack of data, which is brought on by the fact that this dataset only contains house listings, and not information about every house. This contrasts to the Ames dataset (De Cock, 2011), which would presumably be easier to predict on since there is data about many houses, whether for sale or not.
 
 # References
 

@@ -2,7 +2,7 @@
 *.html
 *.out
 *.aux
-*_files
+*_files/
 
 # History files
 .Rhistory
