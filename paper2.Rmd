@@ -1085,6 +1085,8 @@ One clear trend between all three listed models is the similarity between the mo
 
 As stated, I had some trouble re-running my code, and so I'm including a picture that contains the first 6 elements in each of my models and the test data set.  I know this isn't an accurate representation of the actual values of the data, but it does show the relationship between the first elements of my models and test data set. 
 
+<!-- ![Caption for the picture](fourthPic.png) -->
+
 # Conclusions
 
 \doublespacing
