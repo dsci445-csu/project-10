@@ -1076,10 +1076,9 @@ Some of the best models I created used bagging and boosting.
 
 Of note, the random forest model had lower MSE and explained more of the variance. 
 
-
-<!-- ![Caption for the picture](firstPic.png) -->
-<!-- ![Caption for the picture](secondPic.png) -->
-<!-- ![Caption for the picture](thirdPic.png) -->
+![Caption for the picture](firstPic.png)
+![Caption for the picture](thirdPic.png)
+![Caption for the picture](fourthPic.png)
 
 One clear trend between all three listed models is the similarity between the most influential variables.  All three of the models had similar variables, though they were often in different orders of importance. 
 
