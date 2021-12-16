@@ -1274,7 +1274,7 @@ cat("MSE (log(Price)) using Year Built: ", MSE_LAYB, "\n\n" )
 
 ```{r, include=FALSE}
 library(ggplot2)
-library(tidyverse)
+#library(tidyverse)
 library(GGally)
 library(ISLR)
 library(class)
@@ -1289,7 +1289,7 @@ library(splines)
 library(zoo)
 library(dplyr)
 library(ISLR) ## data package
-library(tidyverse) ## data manipulation
+#library(tidyverse) ## data manipulation
 library(knitr) ## tables
 library(tree)
 library(dplyr)
@@ -1551,7 +1551,8 @@ combined_list
 
 ```{r, include = FALSE}
 library(tree)
-library(tidyverse)
+#library(tidyverse)
+library(dplyr)
 library(caret)
 #library(party)
 #library(partykit)
