@@ -2,8 +2,7 @@
 *.html
 *.out
 *.aux
-slides_files
-slides_cache
+*_files
 
 # History files
 .Rhistory
