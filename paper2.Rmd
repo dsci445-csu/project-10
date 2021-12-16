@@ -1,0 +1,1153 @@
+---
+title: "Predicting House Listing Price with Trulia.com Data"
+author: "Sam Fortescue, Mark Gardner, Nat Koonmee"
+date: "12/16/21"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+header-includes:
+- \usepackage{setspace}
+- \usepackage{fontspec}
+- \usepackage{amsmath}
+mainfont: Ubuntu
+monofont: Ubuntu Mono
+---
+
+```{r setup, include=FALSE}
+
+# PACKAGES NEEDED
+
+library(readr)
+library(ggplot2)
+library(leaps)
+library(glmnet)
+library(car)
+library(pls)
+library(dplyr)
+library(knitr)
+library(skimr)
+
+
+library(readr)
+library(knitr)
+library(ggplot2)
+library(leaps)
+library(glmnet)
+library(car)
+library(pls)
+library(dplyr)
+
+library(ggpubr)
+library(boot)
+library(ISLR)
+
+```
+
+---
+
+\newpage
+
+# Abstract
+
+\doublespacing
+
+The price of any commodity is often only an approximation of its true underlying value. As a result, humans, when making purchasing decisions, should take caution to avoid paying too much. In the case of real estate commodities (i.e. houses), datasets from house listing websites are plentiful; for our analysis we used a dataset from Trulia.com (PromptCloud & DataStock, 2019), which contains around 30000 house listing in the United States from September-October 2019. Statistical learning offers a well defined framework for assisting in decisions, by comparing houses considered for purchase with others that are similar. Our goal was to predict house listing price using Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression, Generalized Additive Models (Polynomial Regression, Step Functions), and Tree Based Methods. We subset the dataset by city and state based on the assumption that housing markets tend to be local; predicting price for homes in California, Colorado, Los Angeles, and Denver. Models were trained on 70% of the data, and predictive performance was evaluated with Mean Squared Error calculated from the remaining 30%. There was a primary problem with the data that caused issues in analysis, namely there weren't enough observations of houses that were similar to eachother. In hindsight this issue is quite obvious since house listing websites only list houses for sale, and most houses are not for sale. A contrasting dataset would be the Ames dataset (De Cock, 2011), which contains details about all houses, whether for sale or not. Ultimately the test MSE values obtained were too large for our models to be considered useful in making house purchasing decisions.
+
+# Data Wrangling
+
+```{r, include=FALSE}
+
+# DATA WRANGLING CODE
+
+# read in data
+re <- read_csv("./realEstate.csv")
+
+# get rid of useless columns
+re <- re[,c(-(1:4),-7,-8,-12,-18,-(27:29),-(31:68))]
+
+# remove observations with missing data
+re <- na.omit(re)
+
+# make better var names
+names(re) <- gsub(" ","", names(re))
+
+# remove unit labels and dollar signs
+re$Price <- parse_number(re$Price)
+re$SqrFt <- parse_number(re$SqrFt)
+
+inSqft <- rep(NA,length(re$LotSize))
+for (i in 1:length(re$LotSize)) {
+  if (grepl("sqft",re$LotSize[i],fixed=TRUE)) {
+    inSqft[i] <- TRUE
+  } else {
+    inSqft[i] <- FALSE
+  }
+}
+re$LotSize <- parse_number(re$LotSize)
+for (i in 1:length(re$LotSize)) {
+  if (inSqft[i]) {
+    re$LotSize[i] <- re$LotSize[i]*(1/43560)
+  }
+}
+
+re$Bath <- as.factor(re$Bath)
+re$Beds <- as.factor(re$Beds)
+
+re$LastSoldFor <- parse_number(re$LastSoldFor)
+re$LastTaxAssestment <- parse_number(re$LastTaxAssestment)
+re$PriceSqrFt <- parse_number(re$PriceSqrFt)
+
+```
+
+```{r, echo=FALSE}
+
+# SUBSETS 
+
+ca <- re[re$State == "CA",c(-1,-10,-15)]
+co <- re[re$State == "CO",c(-1,-10,-15)]
+la <- re[re$City == "Los Angeles",c(-1,-10,-15)]
+den <- re[re$City == "Denver",c(-1,-10,-15)]
+
+```
+
+```{r, echo=FALSE}
+
+# DATA TRANSFORMATIONS
+
+ca_t <- ca[,c(-7,-14,-15)]
+ca_t$Price <- log(ca_t$Price)
+ca_t$SqrFt <- sqrt(ca_t$SqrFt)
+ca_t$LotSize <- log(ca_t$LotSize)
+ca_t$LastSoldFor <- log(ca_t$LastSoldFor)
+ca_t$LastTaxAssestment <- log(ca_t$LastTaxAssestment)
+ca_t$LastTaxYear <- as.factor(ca_t$LastTaxYear)
+
+co_t <- co[,c(-12,-14,-15)]
+co_t$Price <- log(co_t$Price)
+co_t$SqrFt <- sqrt(co_t$SqrFt)
+co_t$LotSize <- log(co_t$LotSize)
+co_t$LastSoldFor <- log(co_t$LastSoldFor)
+co_t$LastTaxAssestment <- log(co_t$LastTaxAssestment)
+
+la_t <- la[,c(-7,-13,-14,-15)]
+la_t$Price <- log(la_t$Price)
+la_t$SqrFt <- sqrt(la_t$SqrFt)
+la_t$LotSize <- log(la_t$LotSize)
+la_t$LastSoldFor <- log(la_t$LastSoldFor)
+la_t$LastTaxAssestment <- log(la_t$LastTaxAssestment)
+la_t$LastTaxYear <- as.factor(la_t$LastTaxYear)
+
+den_t <- den[,c(-12,-13,-14,-15)]
+den_t$Price <- log(den_t$Price)
+den_t$SqrFt <- sqrt(den_t$SqrFt)
+den_t$LotSize <- log(den_t$LotSize)
+den_t$LastSoldFor <- log(den_t$LastSoldFor)
+den_t$LastTaxAssestment <- log(den_t$LastTaxAssestment)
+
+```
+
+\doublespacing
+
+Below is a brief summary of the datasets, post-cleaning, for help in understanding. Note the variables categorized by type:
+
+```{r, echo=FALSE}
+
+# DATA SUMMARY
+
+skim(re)
+
+```
+
+The Trulia.com dataset (PromptCloud & DataStock, 2019) initially had 67 columns to consider as predictors, however many didn't have any predictive meaning i.e. `Unique House ID`. In addition, several predictors contained the same information as another, and several more were entirely composed of NA values. After the removal of these columns there were 18 potentially useful predictors. Two of these were `Address` and `Description`; we considered pulling additional features out of these e.g. an indicator if a description contained the word "beautiful," or street name. Given that there usually weren't multiple house listings on the same street, and beautiful is just word that anyone can use, we opted not to do these things. After pulling out useful predictors, we removed observations that had missing observations. In hindsight this may have been a mistake because as we will see in the methodology section below, we didn't end up using many predictors due to errors in analysis, so we could have potentially had more data. The remainder of the data cleaning consisted of removing unit labels, converting all `LotSize` observations to Acres as some were in SqrFt, getting rid of dollar signs, and making everything that should be a factor a factor (or character), and everything else numeric.
+
+For linear models it was necessary to do several data transformations. Most notably we predicted log(`Price`) instead of `Price`, however we were still able to get interpretable predictions via inverse transformations. In general for predictor variables that represented a dollar amount, a log transform worked well. For `SqrFt` taking the square root worked well. We did not transform time data e.g. `LastTaxYear`, because doing log(`Price`) was enough, also it doesn't really make sense to do so. It should be noted that we did look at potentially doing different transformations for different subsets, it just turned out that the same transformations worked for each. The following diagnostic plots for a multiple linear regression on all numeric predictors from the California subset, show that the transformations worked reasonably well at making a linear model have lower bias:
+
+```{r, include=FALSE}
+
+# MLR California on Transformed Numeric Predictors
+
+diag_lm_ca <- lm(Price~.,data=ca_t[,c(-6,-12)])
+
+```
+
+
+```{r, echo=FALSE, out.width="50%"}
+
+# DIAGNOSTIC PLOTS CALIFORNIA
+
+plot(diag_lm_ca,c(1))
+plot(diag_lm_ca,c(2))
+
+```
+
+It's clear that a linear model will not capture some of the true relationship between the transformed predictors and log(`Price`), which is why we decided to fit GAMs on the transformed dataset(s) as well.
+
+To see our exact data wrangling process view the code appendix below under "# DATA WRANGLING".
+
+# Statistical Methodology
+
+\doublespacing
+
+For each set of statistical models our goal was to approximate the true relationship between the predictors in our dataset (PromptCloud, & DataStock, 2019) and list Price of houses. More formally we look for a function $\hat f(\mathbf{x})$ such that $\hat f(\mathbf{x})$ is a decent approximation of the truth as measured by predictive accuracy.
+
+## Linear Models
+
+```{r,include=FALSE}
+
+k <- 10
+lambda <- 10^seq(-4,10,length.out=1000)
+
+set.seed(420)
+
+# California
+
+n <- nrow(ca_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_ca <- lm(Price~.,data=ca_t[trn,c(-6,-12)])
+
+pred_base_ca <- predict(base_lm_ca,ca_t[!trn,c(-6,-12)])
+mse_base_ca <- mean((ca_t[!trn,c(-6,-12)]$Price - pred_base_ca)^2)
+inv_base_ca <- mean((exp(ca_t[!trn,c(-6,-12)]$Price) - exp(pred_base_ca))^2)
+
+## Ridge
+
+cv_ridge_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=0,lambda=cv_ridge_ca$lambda.min)
+pred_ridge_ca <- predict(ridge_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_ridge_ca <- mean((ca_t[!trn,]$Price - pred_ridge_ca)^2)
+inv_ridge_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_ridge_ca))^2)
+
+## Lasso
+
+cv_lasso_ca <- cv.glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_ca <- glmnet(model.matrix(Price~.,data=ca_t)[trn,-1],unlist(ca_t[trn,1]),alpha=1,lambda=cv_lasso_ca$lambda.min)
+pred_lasso_ca <- predict(lasso_trn_ca, model.matrix(Price~.,data=ca_t)[!trn,-1])
+
+mse_lasso_ca <- mean((ca_t[!trn,]$Price - pred_lasso_ca)^2)
+inv_lasso_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_lasso_ca))^2)
+
+## PCR
+
+cv_pcr_ca <- pcr(Price ~ ., data = ca_t[trn,c(-6,-7,-12,-13)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_ca <- pcr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_ca <- predict(pcr_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_ca <- mean((ca_t[!trn,]$Price - pred_pcr_ca)^2)
+inv_pcr_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_pcr_ca))^2)
+
+## PLS
+
+cv_pls_ca <- plsr(Price ~ ., data = ca_t[trn, c(-6,-7,-12,-13)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(ca_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_ca)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_ca <- plsr(Price ~., data = ca_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pls_ca <- predict(pls_trn_ca, model.matrix(Price ~ .,data=ca_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pls_ca <- mean((ca_t[!trn,]$Price - pred_pls_ca)^2)
+inv_pls_ca <- mean((exp(ca_t[!trn,]$Price) - exp(pred_pls_ca))^2)
+
+errors_ca <- c(mse_base_ca,mse_ridge_ca,mse_lasso_ca,mse_pcr_ca,mse_pls_ca)
+inv_errors_ca <- c(inv_base_ca,inv_ridge_ca,inv_lasso_ca,inv_pcr_ca,inv_pls_ca)
+
+```
+
+```{r, include=FALSE}
+
+set.seed(420)
+
+# Colorado
+
+n <- nrow(co_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_co <- lm(Price~.,data=co_t[trn,c(-6,-7,-12)])
+
+pred_base_co <- predict(base_lm_co,co_t[!trn,c(-6,-7,-12)])
+mse_base_co <- mean((co_t[!trn,c(-6,-7,-12)]$Price - pred_base_co)^2)
+inv_base_co <- mean((exp(co_t[!trn,c(-6,-12)]$Price) - exp(pred_base_co))^2)
+
+## Ridge
+
+cv_ridge_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_co <- predict(ridge_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_ridge_co <- mean((co_t[!trn,]$Price - pred_ridge_co)^2)
+inv_ridge_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_ridge_co))^2)
+
+## Lasso
+
+cv_lasso_co <- cv.glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_co <- glmnet(model.matrix(Price~.,data=co_t)[trn,-1],unlist(co_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_co <- predict(lasso_trn_co, model.matrix(Price~.,data=co_t)[!trn,-1])
+
+mse_lasso_co <- mean((co_t[!trn,]$Price - pred_lasso_co)^2)
+inv_lasso_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_lasso_co))^2)
+
+## PCR
+
+cv_pcr_co <- pcr(Price ~ ., data = co_t[trn,c(-6,-7,-12)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_co <- pcr(Price ~., data = co_t[trn,c(-6,-7,-12,-13)], scale=TRUE, M=M)
+pred_pcr_co <- predict(pcr_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12,-13)])[!trn,-1])
+
+mse_pcr_co <- mean((co_t[!trn,]$Price - pred_pcr_co)^2)
+inv_pcr_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_pcr_co))^2)
+
+## PLS
+
+cv_pls_co <- plsr(Price ~ ., data = co_t[trn, c(-6,-7,-12)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(co_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_co)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_co <- plsr(Price ~., data = co_t[trn,c(-6,-7,-12)], scale=TRUE, M=M)
+pred_pls_co <- predict(pls_trn_co, model.matrix(Price ~ .,data=co_t[,c(-6,-7,-12)])[!trn,-1])
+
+mse_pls_co <- mean((co_t[!trn,]$Price - pred_pls_co)^2)
+inv_pls_co <- mean((exp(co_t[!trn,]$Price) - exp(pred_pls_co))^2)
+
+errors_co <- c(mse_base_co,mse_ridge_co,mse_lasso_co,mse_pcr_co,mse_pls_co)
+inv_errors_co <- c(inv_base_co,inv_ridge_co,inv_lasso_co,inv_pcr_co,inv_pls_co)
+
+```
+
+```{r, include=FALSE}
+
+set.seed(420)
+
+# Los Angeles
+
+n <- nrow(la_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_la <- lm(Price~.,data=la_t[trn,c(-6,-11)])
+
+pred_base_la <- predict(base_lm_la,la_t[!trn,c(-6,-11)])
+mse_base_la <- mean((la_t[!trn,c(-6,-12)]$Price - pred_base_la)^2)
+inv_base_la <- mean((exp(la_t[!trn,c(-6,-12)]$Price) - exp(pred_base_la))^2)
+
+## Ridge
+
+cv_ridge_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=0,lambda=cv_ridge_la$lambda.min)
+pred_ridge_la <- predict(ridge_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_ridge_la <- mean((la_t[!trn,]$Price - pred_ridge_la)^2)
+inv_ridge_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_ridge_la))^2)
+
+## Lasso
+
+cv_lasso_la <- cv.glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_la <- glmnet(model.matrix(Price~.,data=la_t)[trn,-1],unlist(la_t[trn,1]),alpha=1,lambda=cv_lasso_la$lambda.min)
+pred_lasso_la <- predict(lasso_trn_la, model.matrix(Price~.,data=la_t)[!trn,-1])
+
+mse_lasso_la <- mean((la_t[!trn,]$Price - pred_lasso_la)^2)
+inv_lasso_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_lasso_la))^2)
+
+## PCR
+
+cv_pcr_la <- pcr(Price ~ ., data = la_t[trn,c(-6,-11)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_la <- pcr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pcr_la <- predict(pcr_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pcr_la <- mean((la_t[!trn,]$Price - pred_pcr_la)^2)
+inv_pcr_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_pcr_la))^2)
+
+## PLS
+
+cv_pls_la <- plsr(Price ~ ., data = la_t[trn, c(-6,-11)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(la_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_la)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_la <- plsr(Price ~., data = la_t[trn,c(-6,-11)], scale=TRUE, M=M)
+pred_pls_la <- predict(pls_trn_la, model.matrix(Price ~ .,data=la_t[,c(-6,-11)])[!trn,-1])
+
+mse_pls_la <- mean((la_t[!trn,]$Price - pred_pls_la)^2)
+inv_pls_la <- mean((exp(la_t[!trn,]$Price) - exp(pred_pls_la))^2)
+
+errors_la <- c(mse_base_la,mse_ridge_la,mse_lasso_la,mse_pcr_la,mse_pls_la)
+inv_errors_la <- c(inv_base_la,inv_ridge_la,inv_lasso_la,inv_pcr_la,inv_pls_la)
+
+```
+
+```{r, include=FALSE}
+
+set.seed(420)
+
+# Denver
+
+n <- nrow(den_t)
+trn <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+n <- length(trn[trn==TRUE])
+folds <- sample(seq_len(k), n, replace = k != n)
+
+## Base Model
+
+base_lm_den <- lm(Price~.,data=den_t[trn,c(-6,-7)])
+
+pred_base_den <- predict(base_lm_den,den_t[!trn,c(-6,-7)])
+mse_base_den <- mean((den_t[!trn,c(-6,-7)]$Price - pred_base_den)^2)
+inv_base_den <- mean((exp(den_t[!trn,c(-6,-12)]$Price) - exp(pred_base_den))^2)
+
+## Ridge
+
+cv_ridge_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=lambda,foldid=folds)
+
+ridge_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=0,lambda=cv_ridge_co$lambda.min)
+pred_ridge_den <- predict(ridge_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_ridge_den <- mean((den_t[!trn,]$Price - pred_ridge_den)^2)
+inv_ridge_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_ridge_den))^2)
+
+## Lasso
+
+cv_lasso_den <- cv.glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=lambda,foldid=folds)
+
+lasso_trn_den <- glmnet(model.matrix(Price~.,data=den_t)[trn,-1],unlist(den_t[trn,1]),alpha=1,lambda=cv_lasso_co$lambda.min)
+pred_lasso_den <- predict(lasso_trn_den, model.matrix(Price~.,data=den_t)[!trn,-1])
+
+mse_lasso_den <- mean((den_t[!trn,]$Price - pred_lasso_den)^2)
+inv_lasso_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_lasso_den))^2)
+
+## PCR
+
+cv_pcr_den <- pcr(Price ~ ., data = den_t[trn,c(-6,-7)], validation = "CV", scale=TRUE, segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pcr_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pcr_trn_den <- pcr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pcr_den <- predict(pcr_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pcr_den <- mean((den_t[!trn,]$Price - pred_pcr_den)^2)
+inv_pcr_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_pcr_den))^2)
+
+## PLS
+
+cv_pls_den <- plsr(Price ~ ., data = den_t[trn, c(-6,-7)], validation = "CV", scale=TRUE,segments=cvsegments(nrow(den_t[trn,]),10))
+mse_cv <- MSEP(cv_pls_den)
+M <- mse_cv$comps[which.min(as.data.frame(mse_cv$val)[1,])]
+
+pls_trn_den <- plsr(Price ~., data = den_t[trn,c(-6,-7)], scale=TRUE, M=M)
+pred_pls_den <- predict(pls_trn_den, model.matrix(Price ~ .,data=den_t[,c(-6,-7)])[!trn,-1])
+
+mse_pls_den <- mean((den_t[!trn,]$Price - pred_pls_den)^2)
+inv_pls_den <- mean((exp(den_t[!trn,]$Price) - exp(pred_pls_den))^2)
+
+errors_den <- c(mse_base_den,mse_ridge_den,mse_lasso_den,mse_pcr_den,mse_pls_den)
+inv_errors_den <- c(inv_base_den,inv_ridge_den,inv_lasso_den,inv_pcr_den,inv_pls_den)
+
+```
+
+The line-based modeling methods considered include Multiple Linear Regression, LASSO and Ridge Regression, Principal Component and Partial Least Squares Regression. We recall that MLR minimizes residual sum of squares to find a best fitting line, and LASSO and Ridge perform a similar optimization however in each there is a penalty term which causes unnecessary $\beta_j$ values to shrink. The LASSO can force $\beta_j$ values to be exactly 0, whereas Ridge can only make them very small. Principal Component and Partial Least Squares regression are both dimension reduction techniques. In both cases multiple linear regression is performed not on the original predictors, but on linear combinations of the predictors.
+
+An interesting error arose when performing multiple linear regression in which dummy variables for different categorical predictors caused linear dependencies in the design matrix. The only solution we found was to remove conflicting categorical predictors, which tended to be things that described the same information e.g. `City` and `Zipcode` were sometimes perfectly collinear. This give some insight into the potential origin of this issue as there were likely some Cities and Zipcodes in the data that shared most of the same observations. Intuitively, having more observations could have solved this problem as well. Our decision to only predict on one of the factors seems reasonable in this instance. LASSO and Ridge regression seemed to not be affected by this issue, I'm not sure if this was the result of the R functions that we used automatically dropping dependencies like this, or if the optimization methods themselves were successful at making the $\beta_j$ values associated with these dummy variables so small that the issue didn't arise.
+
+As far as I'm aware it doesn't make any sense to use categorical predictors with dimension reduction techniques. Taking a linear combination of dummy variables would work mathematically, but would likely just produce a bad set of principal components as regressors.
+
+## Generalized Additive Models
+
+We also came up with a polynomial regression model and step function to our prediction. If we investigated our dataset, in each subgroup some of them does not have any linear relationship between variable and prices but we could still see some pattern on those graphs. We are interested in on Lot Size and Year of building variable, after fitting polynomial regression, it seems like there is a polynomial relationship between price and those two variables. Moreover, we also fit a step function to compare our prediction between these two models, after comparing two models and two variables. All the best results are from polynomial regression with Lot Size variable.
+
+## Tree Based Models
+
+Mark
+
+# Results
+
+\doublespacing
+
+## Linear Models
+
+The test-MSEs in log-price for the best performing model in each subset is given. In addition we provide the test-RMSE after performing the inverse log transformation i.e. $e^x$, on observed and predicted log-price.
+
+### California
+
+The best performing model fit for the California subset was done with the LASSO:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_ca),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_ca)),"\n")
+
+```
+
+### Colorado
+
+The best performing model fit for the Colorado subset was done with Ridge Regression:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_co),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_co)),"\n")
+
+```
+
+### Los Angeles
+
+The best performing model fit for the Los Angeles subset was done with the LASSO:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_la),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_la)),"\n")
+
+```
+
+### Denver
+
+The best performing model fit for the Denver subset was done with Ridge Regression:
+
+```{r, echo=FALSE}
+
+cat("MSE (log(Price)): ",min(errors_den),"\n")
+cat("RMSE (after inverse transformation): ",sqrt(min(inv_errors_den)),"\n")
+
+```
+
+
+<!-- Nat work start here! -->
+
+
+```{r include=F}
+
+
+
+# Denver
+
+# SqFt
+
+dsqr <- ggplot(data=den,aes(x=SqrFt^(1/2),y=log(Price))) +
+  geom_point()
+
+
+# Longitude and Latitude
+
+dlong <- ggplot(data=den,aes(x=Longitude,y=log(Price))) +
+  geom_point()
+
+dlat <- ggplot(data=den,aes(x=Latitude,y=log(Price))) +
+  geom_point()
+
+# Lot Size (acres)
+
+dlot <- ggplot(data=den,aes(x=log(LotSize),y=log(Price))) +
+  geom_point()
+
+# Beds and Baths
+
+dbed <- ggplot(data=den,aes(x=Beds,y=log(Price))) +
+  geom_boxplot()
+
+dbat <- ggplot(data=den,aes(x=Bath,y=log(Price))) +
+  geom_boxplot()
+
+# Year Built
+
+dyear <- ggplot(data=den,aes(x=YearBuilt,y=log(Price))) +
+  geom_point()
+
+# Last Sold For
+
+dlasts <- ggplot(data=den,aes(x=log(LastSoldFor),y=log(Price))) +
+  geom_point()
+
+# Last Tax Assestment
+
+dlasttaxa <-  ggplot(data=den,aes(x=log(LastTaxAssestment),y=log(Price))) +
+  geom_point()
+
+# City
+
+dcity <- ggplot(data=den,aes(x=City,y=log(Price))) +
+  geom_boxplot()
+
+# Other Vars that we didn't consider with all the data, but could in a subset
+
+# Zip
+
+dzip <- ggplot(data=den,aes(x=Zipcode,y=Price)) + geom_boxplot()
+
+# Last Tax Year
+
+dlasttaxy <- ggplot(data=den,aes(x=LastTaxYear,y=log(Price))) + geom_point()
+
+# Last Sold Year
+
+dlastsold <- ggplot(data=den,aes(x=LastSoldYear,y=log(Price))) + geom_point()
+
+# Days on Trulia
+
+dday <- ggplot(data=den,aes(x=DaysOnTrulia,y=log(Price))) +
+  geom_point()
+
+# ggarrange(dsqr, dlong, dlat, dlot,
+#            # labels = c("A", "B", "C"),
+#           ncol = 2, nrow = 2)
+# 
+# 
+# ggarrange(dbed, dbat, dyear, dlasts,
+#            # labels = c("A", "B", "C"),
+#           ncol = 2, nrow = 2)
+# 
+# ggarrange(dlasttaxa, dcity, dzip, dlasttaxy,
+#            # labels = c("A", "B", "C"),
+#           ncol = 2, nrow = 2)
+# 
+# 
+# ggarrange(dlastsold, dday, 
+#            # labels = c("Last Sold year", "Days on Trulia"),
+#           ncol = 2, nrow = 2)
+
+```
+
+
+
+```{r include= FALSE}
+#CA
+CA = ca_t
+
+n = nrow(CA)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- CA[cv_labels != j, ]
+    test <- CA[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+# 7 would be the best degree to pick for lot size variable
+# 4 would be the best degree to pick for year built variabel
+
+lmLS <- lm(Price ~ poly(LotSize, 7), data = CA)
+lmYB <- lm(Price ~ poly(YearBuilt, 4), data = CA)
+CA_lmLS_poly <- lmLS
+CA_lmYB_poly <- lmYB
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, which.min(cv_mseLS)))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 4))[1]), poly(x, which.min(cv_mseYB)))
+  polyLS %*% lmYB$coefficients
+}
+
+CAplotpolyls <- ggplot(data=CA,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+CAplotpolyyb <- ggplot(data=CA,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+LS <- CA$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 10), data = CA)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+CAplotsfls <-ggplot() + 
+  geom_point(aes(LotSize,Price),data=CA,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+CA_lmLS_SF <- fitLS3
+
+
+YB <- CA$YearBuilt
+fitYB3 <- lm(Price ~ cut(YearBuilt, breaks = 8), data = CA)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+CAplotsfyb <- ggplot() + 
+  geom_point(aes(YearBuilt,Price),data=CA,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitYB3, grid)), colour = "red") +
+  theme_bw()
+
+CA_lmYB_SF <- fitYB3
+
+
+
+#CO
+CO <- co_t
+n = nrow(CO)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- CO[cv_labels != j, ]
+    test <- CO[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+# 2 would be the best degree to pick for lot size variable
+# 7 would be the best degree to pick for year built variabel
+
+lmLS <- lm(Price ~ poly(LotSize, 2), data = CO)
+lmYB <- lm(Price ~ poly(YearBuilt, 7), data = CO)
+
+CO_lmLS_poly <- lmLS
+CO_lmYB_poly <- lmYB
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 2))[1]), poly(x, 2))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, 7))
+  polyLS %*% lmYB$coefficients
+}
+
+COplotpolyls <- ggplot(data=CO,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+COplotpolyyb <- ggplot(data=CO,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+LotSize <- CO$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 9), data = CO)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+COplotsfls <- ggplot() + 
+  geom_point(aes(LotSize,Price),data=CO,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+YB <- CO$YearBuilt
+fitLS3 <- lm(Price ~ cut(YearBuilt, breaks = 8), data = CO)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+COplotsfyb <- ggplot() + 
+  geom_point(aes(YearBuilt,Price),data=CO,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+#Denver
+
+
+Denver <- den_t
+
+n = nrow(Denver)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- Denver[cv_labels != j, ]
+    test <- Denver[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+
+
+#degree for both year built and lot size are 7
+
+lmLS <- lm(Price ~ poly(LotSize, 7), data = Denver)
+lmYB <- lm(Price ~ poly(YearBuilt, 7), data = Denver)
+
+DN_lmLS_poly <- lmLS
+DN_lmYB_poly <- lmYB
+
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, 7))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 7))[1]), poly(x, 7))
+  polyLS %*% lmYB$coefficients
+}
+
+DNplotpolyls <- ggplot(data=Denver,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+DNplotpolyyb <- ggplot(data=Denver,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+
+
+
+LS <- Denver$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 10), data = Denver)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+DNplotsfls <- ggplot() + 
+  geom_point(aes(LotSize,Price),data=Denver,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+YB <- Denver$YearBuilt
+fitLS3 <- lm(Price ~ cut(YearBuilt, breaks = 4), data = Denver)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+DNplotsfyb <- ggplot() + 
+  geom_point(aes(YearBuilt,Price),data=Denver,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+#LA
+LA <- la_t
+
+n = nrow(LA)
+d <- 10
+k <- 10
+cv_labels <- sample(seq_len(k), n, replace = T)
+
+cv_mseLS <- rep(NA, d)
+cv_mseYB <- rep(NA, d)
+
+for (i in 1:d){
+  cv_mseLSi <- rep(NA, k)
+  cv_mseYBi <- rep(NA, k)
+  
+  for (j in 1:k){
+    train <- LA[cv_labels != j, ]
+    test <- LA[cv_labels == j, ]
+    
+    fitLS <- lm(Price ~ poly(LotSize, i), data = train)
+    fitYB <- lm(Price ~ poly(YearBuilt, i), data = train)
+    
+    predLS <- predict(fitLS, test)
+    cv_mseLSi[j] <- mean((predLS - test$Price)^2)
+    
+    predYB <- predict(fitYB, test)
+    cv_mseYBi[j] <- mean((predYB - test$Price)^2)
+    
+    
+  }
+  cv_mseLS[i] <- mean(cv_mseLSi)
+  cv_mseYB[i] <- mean(cv_mseYBi)
+}
+
+which.min(cv_mseLS)
+which.min(cv_mseYB)
+
+
+#degree for lot size is 6 and year built is 5
+
+lmLS <- lm(Price ~ poly(LotSize, 6), data = LA)
+lmYB <- lm(Price ~ poly(YearBuilt, 5), data = LA)
+
+
+LA_lmLS_poly <- lmLS
+LA_lmYB_poly <- lmYB
+
+fLS <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 6))[1]), poly(x, 6))
+  polyLS %*% lmLS$coefficients
+}
+
+fYB <- function(x) {
+  polyLS <- cbind(rep(1, dim(poly(x, 5))[1]), poly(x, 5))
+  polyLS %*% lmYB$coefficients
+}
+
+LAplotpolyls <- ggplot(data=LA,aes(x=LotSize,y=Price)) +
+  geom_point() +
+  stat_function(fun=fLS,color="red") +
+  theme_bw()
+
+LAplotpolyyb <- ggplot(data=LA,aes(x=YearBuilt,y=Price)) +
+  geom_point() +
+  stat_function(fun=fYB,color="red") +
+  theme_bw()
+
+
+LS <- LA$LotSize
+fitLS3 <- lm(Price ~ cut(LotSize, breaks = 3), data = LA)
+rrange = range(LS)
+grid <- data.frame(LotSize = seq(rrange[1], rrange[2], length.out = 1000))
+
+LAplotsfls <- ggplot() + 
+  geom_point(aes(LotSize,Price),data=LA,alpha=0.2) +
+  geom_line(aes(grid$LotSize, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+YB <- LA$YearBuilt
+fitLS3 <- lm(Price ~ cut(YearBuilt, breaks = 4), data = LA)
+rrange = range(YB)
+grid <- data.frame(YearBuilt = seq(rrange[1], rrange[2], length.out = 1000))
+
+LAplotsfyb <- ggplot() +
+  geom_point(aes(YearBuilt,Price),data=LA,alpha=0.2) +
+  geom_line(aes(grid$YearBuilt, predict(fitLS3, grid)), colour = "red") +
+  theme_bw()
+
+
+
+```
+
+```{r include = FALSE}
+#prediction
+#starting from CA, CO then denver and LA
+
+set.seed(420)
+n <- nrow(CA)
+catest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+n <- nrow(CO)
+cotest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+n <- nrow(Denver)
+dntest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+n <- nrow(LA)
+latest <- seq_len(n) %in% sample(seq_len(n),round(0.7*n))
+
+pred_polyCA_LS <- predict(CA_lmLS_poly, CA[catest, 5])
+pred_polyCA_YB <- predict(CA_lmYB_poly, CA[catest, 7])
+
+
+# pred_sfCA_LS <- predict(CA_lmLS_SF, CA[catest, 5])
+# pred_sfCA_YB <- predict(CA_lmYB_SF, CA[catest, 7])
+
+
+
+
+pred_polyCO_LS <- predict(CO_lmLS_poly, CO[cotest, 5])
+pred_polyCO_YB <- predict(CO_lmYB_poly, CO[cotest, 8])
+
+pred_polyDN_LS <- predict(DN_lmLS_poly, Denver[dntest, 5])
+pred_polyDN_YB <- predict(DN_lmYB_poly, Denver[dntest, 8])
+
+pred_polyLA_LS <- predict(LA_lmLS_poly, LA[latest, 5])
+pred_polyLA_YB <- predict(LA_lmYB_poly, LA[latest, 7])
+
+#getting MSE
+
+MSE_CALS <- mean((CA[catest,]$Price - pred_polyCA_LS)^2)
+MSE_CAYB <- mean((CA[catest,]$Price - pred_polyCA_YB)^2)
+
+MSE_COLS <- mean((CO[cotest,]$Price - pred_polyCO_LS)^2)
+MSE_COYB <- mean((CO[cotest,]$Price - pred_polyCO_YB)^2)
+
+MSE_DNLS <- mean((Denver[dntest,]$Price - pred_polyDN_LS)^2)
+MSE_DNYB <- mean((Denver[dntest,]$Price - pred_polyDN_YB)^2)
+
+MSE_LALS <- mean((LA[latest,]$Price - pred_polyLA_LS)^2)
+MSE_LAYB <- mean((LA[latest,]$Price - pred_polyLA_YB)^2)
+
+# cat("CA", "\n")
+# cat("MSE (log(Price)) using Lot Size: ", MSE_CALS, "\n" )
+# cat("MSE (log(Price)) using Year Built: ", MSE_CAYB, "\n\n" )
+# 
+# cat("CO", "\n")
+# cat("MSE (log(Price)) using Lot Size: ", MSE_COLS, "\n" )
+# cat("MSE (log(Price)) using Year Built: ", MSE_COYB, "\n\n" )
+# 
+# cat("Denber", "\n")
+# cat("MSE (log(Price)) using Lot Size: ", MSE_DNLS, "\n" )
+# cat("MSE (log(Price)) using Year Built: ", MSE_DNYB, "\n\n" )
+# 
+# cat("LA", "\n")
+# cat("MSE (log(Price)) using Lot Size: ", MSE_LALS, "\n" )
+# cat("MSE (log(Price)) using Year Built: ", MSE_LAYB, "\n\n" )
+
+```
+
+## Generalized Additive Models
+
+The best performing model fit for the all four subgroup (California, Colorado, Los Angeles, and Devner) are polynomial model using Lot Size as a variable.
+
+
+
+```{r, echo = F}
+cat("California: MSE (log(Price)): ",MSE_CALS,"\n")
+cat("Colorado: MSE (log(Price)): ",MSE_COLS,"\n")
+cat("Los Angeles: MSE (log(Price)): ",MSE_DNLS,"\n")
+cat("Denver: MSE (log(Price)): ",MSE_LALS, "\n")
+
+
+
+```
+
+<!-- Nat changed ended -->
+
+
+## Tree Based Models
+
+Mark
+
+# Conclusions
+
+\doublespacing
+
+We see in the linear models that the RMSE values are certainly too high to consider any of the model useful. For example suppose you were looking at a house listed for \$400,000 dollars in Denver, and the model predicted a price of \$375,000. Knowing that the prediction is likely to be off by as much as \$151,153 (and perhaps more) would basically make the predicted value useless. That being said predictive accuracy in Colorado and Denver was comparatively much better than in California and Los Angeles. There are a few factors to consider here. Firstly, the range in Prices in the data subsets:
+
+```{r, echo=FALSE}
+
+cat("Price Range CA: ",range(ca$Price),"\n")
+cat("Price Range CO: ",range(co$Price),"\n")
+cat("Price Range LA: ",range(la$Price),"\n")
+cat("Price Range DEN: ",range(den$Price),"\n")
+
+```
+
+There is less variance in Price in general for the Colorado and Denver subsets, so it makes sense that test error would also be smaller, especially considering our lack of similar observations. Secondly, a linear fit, based on diagnostic plots, seems to fit the Colorado and Denver subsets somewhat better:
+
+### Colorado
+
+```{r, echo=FALSE, out.width="50%",warning=FALSE}
+
+diag_lm_co <- lm(Price~.,data=co_t[,c(-6,-12)])
+
+plot(diag_lm_co,c(1))
+plot(diag_lm_co,c(2))
+
+```
+
+### Denver
+
+```{r, echo=FALSE, out.width="50%",warning=FALSE}
+
+diag_lm_den <- lm(Price~.,data=den_t[,c(-6,-7)])
+
+plot(diag_lm_den,c(1))
+plot(diag_lm_den,c(2))
+
+```
+
+A note should be made about lack of predictive ability in general due to lack of observations, especially at extreme ends of predictors. 
+
+# References
+
+\singlespacing
+
+De Cock, Dean. 2011. 'Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project.' Journal of Statistics Education, Volume 19, Number 3. Retrieved 12/14/2021 from (http://jse.amstat.org/v19n3/decock.pdf)
+
+PromptCloud, & DataStock, 2019. Real Estate Data From Trulia (Version 1). A house listing dataset from Trulia.com. Retrieved 12/14/2021 from (https://www.kaggle.com/promptcloud/real-estate-data-from-trulia)
+
+# Code Appendix
+
+```{r show-code, ref.label = all_labels(), echo = TRUE, eval = FALSE}
+
+```
