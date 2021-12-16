@@ -1077,6 +1077,7 @@ Some of the best models I created used bagging and boosting.
 Of note, the random forest model had lower MSE and explained more of the variance. 
 
 ![Caption for the picture](firstPic.png)
+![Caption for the picture](secondPic.png)
 ![Caption for the picture](thirdPic.png)
 ![Caption for the picture](fourthPic.png)
 
