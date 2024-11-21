@@ -15,3 +15,35 @@ To do:
       We present first, so we need to be on top of this assignment.
 
   We got this!
+
+Objective: "To predict the outcome of presidential elections and identify factors that contribute to a candidate's sucess"
+
+Research Questions: 
+  "What factors are most predictive of election outcomes"
+  "How can historical data be used to forcast results"
+  "What trends or patterns have influenced past elections"
+
+Scope/Limitations: 
+  -When do we begin analyzing elections, focus on clarity of data
+  -Contraints: Data Availability, Bias
+
+Methodology:
+  - Binary Regression, Machine learning models, Linear Regression
+
+Data Collection Resources: FEC (Federal Election Commission)
+  Poll Data: Gallup
+
+Demographic data: U.S Census Bureau
+
+Economic Data: Bureau of Labor Statistics
+
+Campaign Fincance Data: Opensecrets.org
+
+Presentation Format: 8 minutes total
+  Introduction: Explain to the class what the topic and objective are about and why it's important
+  Methods: Such as what models and regressions that we used to analyze the data
+    Also mention the contraints that were found in data collection
+  Findings: Present the findings and why its important
+  Conclusion: Summarize and make statements about the results
+
+
