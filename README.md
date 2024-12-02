@@ -15,10 +15,19 @@ This project explores to predict the outcome of presidential elections and ident
 ## Physical Characteristics
 
 * Step-by-step guide to import data
-* Step-by-step guide to write the code
+* Step-by-step guide to write the code (Look at videos online, explains really well how to make it look good)
 * Findings/Models for each catagory (age, height, facial hair)
 * Discussion and Conclusions
 
+## Economic Characteristics
+
+* Step-by-step guide to import economic data
+* Step-by-step guide to write the code (Look at videos online, explains really well how to make it look good)
+* Findings/Models for each catagory (Unemployment rate, national dept, political history, education)
+* Discussion and Conclusions
+
+## License
+This project is licensed under...
 
 # Sources:
 
