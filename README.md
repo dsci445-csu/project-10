@@ -1,6 +1,6 @@
 # Project - 10: U.S. Presidential Elections: Analysis of Candidates and Characteristics
 
-* Introduction
+## Introduction
 
 This project explores to predict the outcome of presidential elections and identify factors that contribute to a candidate's success. Through this, we explore two character subsets that help distinguish one candidate from another. For physical characteristics, the dataset includes key attributes such as an individuals height, age, facial hair, election results, election year, party affirmation, and name. For economical characteristics, the dataset includes current unemployment rate, education, political history, election year, party affirmation, candidate name, and election results. By analyzing these historical trends, the project aims to provide insights into how physical/economic attributes to a candidates success. 
 
