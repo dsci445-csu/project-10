@@ -1,0 +1,316 @@
+---
+title: "U.S. Presidential Predictions"
+author: "Jacy Werner, Khaled Alketbi, Khalifa Alghaithi"
+date: "2024-12-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Throughout U.S. history, presidents have been inaugurated into office from all backgrounds. While topically this may appear to be random, we set out to explore historical trends to analyze if there is common components that are key to a candidates success. This project provides a comprehensive analysis of U.S. presidential elections, focusing on various aspects of candidates and the factors influencing their credibility, public perception, and electoral success. This project analyzes three primary subsets that we believe contribute the most to a candidates success.
+
+-   Physical Characteristics
+-   Economic Situation
+-   Personal Credibility
+
+Data collection has been dissected from historical records between the years of 1832 and 2024, in correlation between the Democratic and Republican parties. These party associations have been dominant throughout U.S. history which enacted the removal of separate parties for variable disturbances.
+
+## Motivation
+
+With the 2024 election occurring during this academic semester, we have found ourselves surrounded by electoral information. Which raised the question for this project, "is it possible to predict the outcome of presidential elections and identify factors that contribute to a candidate's success". The motivation for this project stems from the desire to understand the evolving characteristics and qualifications of U.S. presidential candidates and their relationship to electoral success.
+
+## Methology
+
+For this project, we decided to analyze the data using Logistic Regression and Random Forrest. To begin, we used the logistic regression model as it is ideal for predicting binary outcomes. Throughout our data search, we have found that most of our data comes in binary variables such as YES and NO (1, 0), such as facial hair, win, war, education, political history, and business owner. When comparing to other models such as KNN, Cross-Validation and Binary Regression. We found that logistic regression and random forrest consistently held more accurate error rates and p-values. Additionally, random forrest was a great model to interpret as it is suitable for non-linear relationships.
+
+## Constraints:
+
+Through this project, we have found some constraints that may damped the credibility of the data and the results. Politics are an opinionated topic, the direction of a voter can be influenced by their family nurture, wealth demographic, and geography. Additionally, when retrieving the data, our group found retrieving data from over a century ago to be rather minimal and difficult. Throughout history, we have evolved in the way we capture/store data which can alter the data's significance.
+
+# Results
+\begin{center}
+\textbf{Candidates Height}
+\end{center}
+
+Regarding a presidential candidates physical characteristics, we began by exploring their heights to explore if there is a correlation between height and their presidential inauguration. In order to do this, we implemented a logistic regression model as it best....
+
+```{r, include=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r, echo=FALSE, results='hide'}
+
+
+data <- read.csv("Presidential-Physical-Characteristics (1).csv")
+
+data$Win <- factor(data$Win, levels = c("No", "Yes"))
+
+height_model <- glm(Win ~ Height, data = data, family = "binomial")
+
+
+exp(coef(height_model))
+
+data$Predicted_Prob <- predict(height_model, type = "response")
+
+ggplot(data, aes(x = Height, y = Predicted_Prob)) +
+  geom_point() +
+  labs(title = "Predicted Probability of Winning by Height",
+       x = "Height (cm)",
+       y = "Predicted Probability") +
+  theme_minimal()
+```
+
+The logistic regression model shows a positive relationship between height and the likelihood of winning an election, with taller candidates having slightly higher odds of winning. For every 1 cm increase in height, the odds of winning increase by about 4.7%. However, the effect is not statistically significant (p-value = 0.12), meaning we cannot confidently conclude that height alone predicts election outcomes. While the model suggests a weak trend, other factors likely play a more substantial role in determining election results.
+
+\begin{center}
+\textbf{Candidates Age}
+\end{center}
+
+The age of a president matters because it can influence public perception, governance style, and their physical and mental capacity to handle the demanding role of leading a nation. Age is often a topic for discussion within presidential elections because: 
+
+  * Experience and Maturity
+      * Young: Perceived as innovative and easily connectable to a younger audience
+      * Older: Viewed as season, wise, and experience leaders
+  * Health
+      * Health risks such as stamina, fitness, and acuite brain function
+  * Leadership style (caution vs risk)
+  
+
+```{r, echo=FALSE, results='hide'}
+age_model <- glm(Win ~ Age, data = data, family = "binomial")
+
+summary(age_model)
+
+exp(coef(age_model))
+
+data$Predicted_Prob_Age <- predict(age_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Age)) +
+  geom_point() +
+  labs(title = "Predicted Probability of Winning by Age",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal()
+
+```
+
+The model shows that age has a small positive effect on the likelihood of winning, with the odds of winning increasing by about 1.5% for every additional year of age. However, this effect is not statistically significant (p-value = 0.538), meaning there is insufficient evidence to conclude that age strongly impacts election outcomes. The residual deviance is nearly the same as the null deviance, indicating that adding age does not significantly improve the model's predictive power. Overall, age alone is not a meaningful predictor of winning elections in this dataset.
+
+
+\begin{center}
+\textbf{Facial Hair}
+\end{center}
+
+
+While facial hair is not inherently important for a presidents ability to govern, it has played a symbolic role throughout history in which it shapes the public's perception. In times of war, it has been noted that a leader's beard gives them the perception of masculinity and power which has the opportunity of influencing the population for their vote. Additionally, in modern times, a clean-shaven appearance is often associated with professionalism and approach ability. Which can again give the perception of influence to a national audience.
+
+```{r echo = FALSE, results='hide'}
+facial_hair_model <- glm(Win ~ Facial.Hair, data = data, family = "binomial")
+
+summary(facial_hair_model)
+
+exp(coef(facial_hair_model))
+
+data$Predicted_Prob_FacialHair <- predict(facial_hair_model, type = "response")
+
+ggplot(data, aes(x = Facial.Hair, y = Predicted_Prob_FacialHair)) +
+  geom_boxplot() +
+  labs(title = "Predicted Probability of Winning by Facial Hair",
+       x = "Facial Hair (Yes/No)",
+       y = "Predicted Probability") +
+  theme_minimal()
+
+```
+***
+
+The model suggests that candidates with facial hair have about 18% lower odds of winning compared to those without, as indicated by the odds ratio of 0.819. However, this effect is not statistically significant (p-value = 0.655), meaning there is insufficient evidence to conclude that facial hair impacts election outcomes. The predicted probabilities of winning are nearly identical for candidates with and without facial hair, as shown in the plot. Overall, facial hair alone does not appear to be a strong predictor of winning in this data set.
+
+\begin{center}
+\textbf{Combination of Physical Characteristics}
+\end{center}
+
+After collecting the results from the physical characteristics, we decided to incorporate the data simultaneously to continue analysis on whether these characteristics are statistically significant in the prediction of presidential winners.
+
+```{r echo = FALSE, results='hide'}
+combined_model <- glm(Win ~ Height + Age + Facial.Hair, data = data, family = "binomial")
+
+summary(combined_model)
+
+exp(coef(combined_model))
+
+data$Predicted_Prob_Combined <- predict(combined_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Combined, color = Facial.Hair)) +
+  geom_point(aes(size = Height)) +
+  labs(title = "Predicted Probability of Winning by Age, Height, and Facial Hair",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "blue", "Yes" = "red"), name = "Facial Hair")
+
+```
+
+The combined model shows that height has the strongest positive association with winning, with odds increasing by 4.5% for every additional cm, but this effect is not statistically significant (p-value = 0.150). Age and facial hair contribute minimally, with no significant impact on the likelihood of winning. The model fit is weak, as indicated by a small improvement in deviance and an AIC of 141.26, suggesting physical traits alone are poor predictors of election outcomes. Overall, none of the traits significantly influence winning when combined, and other factors likely play a larger role.
+
+\begin{center}
+\textbf{Comparison of Party Preferences}
+\end{center}
+
+Additionally, we as a group wanted to analyze the importance of the physical traits- age, height, and facial hair to each political party. This analysis allows us to explore potential biases or trends within the candidates affiliated party (democratic and republican).By distinguishing these traits, we can explore whether physical attributes correlate with each party's nomination process and electoral outcomes.
+
+```{r echo = FALSE, results='hide'}
+data_democrats <- data %>% filter(Party == "Democratic")
+data_republicans <- data %>% filter(Party == "Republican")
+
+democrats_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_democrats, family = "binomial")
+summary(democrats_model)
+exp(coef(democrats_model))
+
+republicans_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_republicans, family = "binomial")
+summary(republicans_model)
+exp(coef(republicans_model))
+
+data_democrats$Predicted_Prob <- predict(democrats_model, type = "response")
+data_republicans$Predicted_Prob <- predict(republicans_model, type = "response")
+
+data_combined <- bind_rows(
+  data_democrats %>% mutate(Party = "Democratic"),
+  data_republicans %>% mutate(Party = "Republican")
+)
+
+ggplot(data_combined, aes(x = Age, y = Predicted_Prob, color = Party)) +
+  geom_point(aes(size = Height)) +
+  labs(title = "Predicted Probability of Winning by Party, Age, and Physical Attributes",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal() +
+  scale_color_manual(values = c("Democratic" = "blue", "Republican" = "red"))
+
+```
+
+For Democrats, height significantly increases the odds of winning, with a 14.9% increase for every additional cm, making it the only significant physical trait. In contrast, none of the traits (height, age, or facial hair) significantly influence winning for Republican candidates. The model for Democrats fits the data better (AIC = 65.829) compared to the Republican model (AIC = 74.738), indicating physical traits play a larger role in Democratic elections. Overall, Democrats appear to care more about physical attributes, particularly height, than Republicans.
+
+\begin{center}
+\textbf{Candidate Education}
+\end{center}
+
+Showcase the result plot and highlight how the p-values inferred a negative correlation between a candidates education and their presidential inauguration. 
+
+Logistic Regression
+
+\begin{center}
+\textbf{Candidate Political History}
+\end{center}
+
+Showcase the result plot and highlight how the p-values inferred a negative correlation between a candidates political history and their presidential inauguration. 
+
+Logistic Regression
+
+
+\begin{center}
+\textbf{Candidate Business Ownership}
+\end{center}
+
+Showcase the result plot and highlight how the p-values inferred a negative correlation between a candidates business ownership and their presidential inauguration. 
+
+
+Logistic Regression
+
+\begin{center}
+\textbf{Comparison of Education, Political History, and Business Ownership}
+\end{center}
+
+Showcase the result plot and highlight how the p-values inferred a more reliable data prediction, but still not near the appropriate error margin to deam the data significant. 
+
+Random Forest
+
+\begin{center}
+\textbf{Next Party Prediction}
+\end{center}
+
+Showcase the result plot and highlight how the p-values inferred a more reliable data prediction, but still not near the appropriate error margin to deam the data significant.
+
+Random Forest
+
+## Conclusion: 
+
+Based on our results, we can conclude that the only statistically significant indication of a inaugurational success is a democratic candidates height. Throughout history, there is a positive correlation between a democratic height and whether or not they win the election. Based upon all the other models, we have found that there is no significant correlation between a candidates physical characteristics, current economic turmoil, and individual credibility. 
+
+  * Further explain the models that we used and why they were the most statistically significant when compared to other models.
+  * Further explain the constraints and why they could play a role in the lack of statistical significance (bias, data availability, etc).
+  * Explain how this data can be statistically significant in the next few centuries as there is more data to analyze.
+  * Explain the difference in ideologies over the years that can correlate to conflicted data analysis.
+
+## Sources
+
+- [Wikipedia - 1924 United States Presidential Election](https://en.wikipedia.org/wiki/1924_United_States_presidential_election)
+- [Wikipedia - Heights of presidents and presidential candidates of the United States](https://en.wikipedia.org/wiki/Heights_of_presidents_and_presidential_candidates_of_the_United_States?utm_source=chatgpt.com)
+- [Wikipedia - List of United States major party presidential tickets](https://en.wikipedia.org/wiki/List_of_United_States_major_party_presidential_tickets)
+- [Coolidge Foundation - 1924 High Tide Conservatism](https://coolidgefoundation.org/blog/1924-high-tide-conservatism/)
+- [Coolidge Foundation - Hoover vs Smith](https://coolidgefoundation.org/blog/hoover-vs-smith-the-race-of-a-lifetime/)
+- [Hoover Blogs - A troubled relationship](https://hoover.blogs.archives.gov/2021/05/05/a-troubled-relationship/)
+- [Britannica - Alf Landon](https://www.britannica.com/biography/Alf-Landon)
+- [Britannica - Wndell Willkie](https://www.britannica.com/biography/Wendell-Willkie)
+- [Empire State Plaza - Thomas E Dewey](https://empirestateplaza.ny.gov/hall-governors/thomas-e-dewey)
+- [White House - Harry Truman](https://www.whitehouse.gov/about-the-white-house/presidents/harry-s-truman/)
+- [Miller Center - Adlai E Stevenson II](https://millercenter.org/conversations/conversants/adlai-e-stevenson-ii)
+- [Columbia - Dwight D EisenHower](https://c250.columbia.edu/c250_celebrates/remarkable_columbians/dwight_d_eisenhower.html)
+- [White House - John F kennedy](https://www.whitehouse.gov/about-the-white-house/presidents/john-f-kennedy/)
+- [Nixon Foundation - Richard Nixon](https://www.nixonfoundation.org/resources/richard-nixon-biography/)
+- [Warroom - Thanksgiving 1968](https://warroom.armywarcollege.edu/articles/thanksgiving-1968/)
+- [Britannica - Barry Goldwater](https://www.britannica.com/biography/Barry-Goldwater)
+- [History - Hubert H. Humphrey](https://www.history.com/topics/1960s/hubert-h-humphrey)
+- [Britannica - George McGovern](https://www.britannica.com/biography/George-McGovern)
+- [Wikipedia - Jimmy Carter](https://en.wikipedia.org/wiki/Jimmy_Carter)
+- [Wikipedia - Gerald Ford](https://en.wikipedia.org/wiki/Gerald_Ford)
+- [California Museum - Ronald Reagan](https://californiamuseum.org/inductee/ronald-reagan/)
+- [Britannica - Walter Mondale](https://www.britannica.com/biography/Walter-Mondale)
+- [North Eastern - Michael Dukakis](https://cssh.northeastern.edu/faculty/michael-dukakis/)
+- [Britannica - George H. W. Bush](https://www.britannica.com/biography/George-H-W-Bush)
+- [White House - William J Clinton](https://www.whitehouse.gov/about-the-white-house/presidents/william-j-clinton/)
+- [Wikipedia - Bob Dole](https://en.wikipedia.org/wiki/Bob_Dole)
+- [Bush Center - George W. Bush](https://www.bushcenter.org/about-us/the-bush-family/george-w-bush)
+- [Britannica - John Kerry](https://www.britannica.com/biography/John-Kerry)
+- [NPR - Obama](https://www.npr.org/sections/thetwo-way/2012/12/21/167786760/reports-obama-will-nominate-sen-kerry-for-secretary-of-state-today)
+- [New Yorker - John Mccain](https://www.newyorker.com/news/news-desk/john-mccain-and-the-end-of-romantic-conservatism)
+- [New Yorker - Mitt Romney](https://www.newyorker.com/news/daily-comment/mitt-romney-returns-to-the-national-stage-in-the-senate-impeachment-trial)
+- [Wikipedia - Donald Trump](https://en.wikipedia.org/wiki/Donald_Trump)
+- [White House - Biden](https://www.whitehouse.gov/administration/president-biden/)
+- [Britannica - Andrew Jackson](https://www.britannica.com/biography/Andrew-Jackson)
+- [Britannica - Henry Clay](https://www.britannica.com/biography/Henry-Clay)
+- [White House - Martin Van Buren](https://www.whitehouse.gov/about-the-white-house/presidents/martin-van-buren/)
+- [Battle Fields - William Henry Harrison](https://www.battlefields.org/learn/biographies/william-henry-harrison)
+- [Britannica - Lewis Cass](https://www.britannica.com/biography/Lewis-Cass)
+- [Britannica - James K. Polk](https://www.britannica.com/biography/James-K-Polk/Presidency)
+- [White House - Zachary Taylor](https://www.whitehouse.gov/about-the-white-house/presidents/zachary-taylor/)
+- [Wikipedia - Franklin Pierce](https://en.wikipedia.org/wiki/Franklin_Pierce)
+- [Britannica - Winfield Scott](https://www.britannica.com/biography/Winfield-Scott)
+- [White House - James Buchanan](https://www.whitehouse.gov/about-the-white-house/presidents/james-buchanan/)
+- [ThoughtCo - John C. Fremont](https://www.thoughtco.com/john-c-fremont-biography-1773598)
+- [NPS - Stephan A. Douglas](https://www.nps.gov/people/stephen-a-douglas.htm)
+- [White House - Abraham Lincoln](https://www.whitehouse.gov/about-the-white-house/presidents/abraham-lincoln/)
+- [Ohio Civil War - George B. McClellan](https://www.ohiocivilwarcentral.com/george-brinton-mcclellan/)
+- [MrLincoln - Horatio Seymour](https://www.mrlincolnandnewyork.org/new-yorkers/horatio-seymour-1810-1886/index.html)
+- [History Hit - Ulysses S. Grant](https://www.historyhit.com/facts-about-ulysses-s-grant/)
+- [Mental Floss - Horace Greeley](https://www.mentalfloss.com/article/635741/horace-greeley-loses-presidential-election-then-dies)
+- [Wikipedia - Samual J. Tilden](https://en.wikipedia.org/wiki/Samuel_J._Tilden)
+- [White House - Rutherford B. Hayes](https://www.whitehouse.gov/about-the-white-house/presidents/rutherford-b-hayes/)
+- [Emerging Civil War - General Hancock](https://emergingcivilwar.com/2020/04/24/ending-the-war-general-hancock-the-execution-part-2/)
+- [White House - James Garfield](https://www.whitehouse.gov/about-the-white-house/presidents/james-garfield/)
+- [White House - Grover Cleveland](https://www.whitehouse.gov/about-the-white-house/presidents/grover-cleveland/)
+- [Wikipedia - James G. Blaine](https://en.wikipedia.org/wiki/James_G._Blaine)
+- [Wikipedia - Benjamin Harrison](https://en.wikipedia.org/wiki/Benjamin_Harrison)
+- [Wikipedia - William Jennings Bryan](https://en.wikipedia.org/wiki/William_Jennings_Bryan)
+- [McKinley President](https://www.mckinley.lib.oh.us/president)
+- [Wikipedia - Alton B. Parker](https://en.wikipedia.org/wiki/Alton_B._Parker)
+- [Britannica - Theodore Roosevelt](https://www.britannica.com/biography/Theodore-Roosevelt)
+- [NWHOF - William Taft](https://nwhof.org/hall_of_fame/bio/148)
+- [239 Days - Woodrow Wilson](https://239days.com/2012/07/03/the-man-who-would-be-president/)
+- [Wikipedia - Charles Evan Hughes](https://en.wikipedia.org/wiki/Charles_Evans_Hughes)
+- [Wikipedia - James M. Cox](https://en.wikipedia.org/wiki/James_M._Cox)
+- [White House - Warren G. Harding](https://www.whitehouse.gov/about-the-white-house/presidents/warren-g-harding/)
