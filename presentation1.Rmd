@@ -1,0 +1,463 @@
+---
+title: "U.S. Presidential Predictions"
+author: "Jacy Werner, Khaled Alketbi, Khalifa Alghaithi"
+date: "2024-12-03"
+output: powerpoint_presentation
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Introduction
+
+Throughout U.S. history, presidents have been inaugurated into office from all backgrounds. Our project explores historical trends to evaluate candidate success. This project focuses on two primary subsets:
+
+- Physical Characteristics
+- Personal Credibility
+
+
+
+
+---
+
+## Motivation
+
+With the 2024 election occurring this semester, we asked: **"Is it possible to predict the outcome of presidential elections and identify factors that contribute to a candidate's success?"**
+
+- The project is motivated by a desire to understand the evolving qualifications and characteristics of U.S. presidential candidates.
+
+---
+
+## Methodology
+
+We used logistic regression, random forest, and SVM models to analyze relationships between candidate traits and their likelihood of winning. 
+
+- Binary Variables
+- Non-linear Data
+- Comparison to other models
+- Small Data sets
+
+---
+
+## Constraints
+
+Some constraints affected the credibility of our data and results by:
+
+- Politics is Opinionated
+- Historical data
+- Methods of Data Storage
+- Changing Ideology
+
+---
+
+# Physical Characteristics 
+
+
+## Candidates' Height
+
+### 
+
+#### Key Findings:
+- **Taller candidates have higher odds of winning.**  
+<br>
+- **For every 1 cm increase in height, odds increase by about 4.7%.**  
+<br>
+- **The effect is not statistically significant (p-value = 0.12).**
+```{r include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(randomForest)
+library(caret)
+library(e1071)
+library(flextable)
+```
+
+```{r, echo=FALSE}
+
+
+data <- read.csv("Presidential-Physical-Characteristics (1).csv")
+
+data$Win <- factor(data$Win, levels = c("No", "Yes"))
+
+height_model <- glm(Win ~ Height, data = data, family = "binomial")
+data$Predicted_Prob <- predict(height_model, type = "response")
+
+ggplot(data, aes(x = Height, y = Predicted_Prob)) +
+  geom_point() +
+  labs(title = "Height",
+       x = "Height (cm)",
+       y = "Predicted Probability") +
+  theme_minimal()
+```
+
+
+## Candidates' Age
+
+### 
+
+#### Key Findings:
+- **Age has a small positive effect on winning.**  
+<br>
+- **Odds of winning increase by about 1.5% per year.**  
+<br>
+- **The effect is Not statistically significant (p-value = 0.538).**
+
+```{r, echo=FALSE}
+age_model <- glm(Win ~ Age, data = data, family = "binomial")
+data$Predicted_Prob_Age <- predict(age_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Age)) +
+  geom_point() +
+  labs(title = "Age",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal()
+```
+
+## Facial Hair
+
+### 
+
+#### Key Findings:
+- **Candidates with facial hair have about 4% lower odds of winning.**  
+<br>
+- **The effect is not statistically significant (p-value = 0.655).**  
+
+
+
+```{r, echo=FALSE}
+
+facial_hair_model <- glm(Win ~ Facial.Hair, data = data, family = "binomial")
+
+data$Predicted_Prob_FacialHair <- predict(facial_hair_model, type = "response")
+
+library(ggplot2)
+ggplot(data, aes(x = Facial.Hair, y = Predicted_Prob_FacialHair)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 16, outlier.colour = "red") +  
+  geom_jitter(width = 0.1, alpha = 0.5, color = "black") + 
+  labs(
+    title = "Facial Hair",
+    x = "Facial Hair (Yes/No)",
+    y = "Predicted Probability"
+  ) +
+  theme_minimal()
+
+```
+
+
+## Combining All Traits
+
+### 
+
+#### Key Findings:
+- **Height has the strongest positive association with winning (4.5% increase per cm).**  
+<br>
+- **Age and facial hair contribute minimally.**  
+<br>
+- **None of the traits are statistically significant predictors.**  
+
+
+```{r, echo=FALSE}
+combined_model <- glm(Win ~ Height + Age + Facial.Hair, data = data, family = "binomial")
+data$Predicted_Prob_Combined <- predict(combined_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Combined, color = Facial.Hair)) +
+  geom_point(aes(size = Height)) +
+  labs(title = "Age, Height, and Facial Hair",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "blue", "Yes" = "red"), name = "Facial Hair")
+```
+
+
+## Comparing Party Preferences
+
+
+### 
+
+#### Key Findings:
+- **For Democrats, Height has a statistically significant positive association with winning. the odds of winning (14.9% per cm).**  
+<br>
+- **For republicans Physical traits do not significantly influence winning outcomes.**  
+  
+
+
+```{r, echo=FALSE}
+data_democrats <- data %>% filter(Party == "Democratic")
+data_republicans <- data %>% filter(Party == "Republican")
+
+democrats_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_democrats, family = "binomial")
+data_democrats$Predicted_Prob <- predict(democrats_model, type = "response")
+
+republicans_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_republicans, family = "binomial")
+data_republicans$Predicted_Prob <- predict(republicans_model, type = "response")
+
+data_combined <- bind_rows(
+  data_democrats %>% mutate(Party = "Democratic"),
+  data_republicans %>% mutate(Party = "Republican")
+)
+
+ggplot(data_combined, aes(x = Age, y = Predicted_Prob, color = Party)) +
+  geom_point(aes(size = Height)) +
+  labs(title = "Physical Attributes",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal() +
+  scale_color_manual(values = c("Democratic" = "blue", "Republican" = "red"))
+```
+
+
+# Credibility
+
+## Candidate Education
+
+### 
+
+#### Key Findings:
+- **Candidates with formal education are slightly less likely to win compared to candidates without formal education.**  
+<br>
+- **The effect is not statistically significant (p = 0.481).**
+
+```{r, echo=FALSE}
+
+education_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n_distinct(Education) > 1)
+
+education_model <- glm(Win ~ Education, family = "binomial", data = education_filtered)
+
+odds_education <- exp(coef(education_model))
+
+education_filtered$Predicted_Prob_Education <- predict(education_model, type = "response")
+ggplot(education_filtered, aes(x = Education, y = Predicted_Prob_Education, color = Education)) +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  labs(
+    title = "Impact of Education on Winning",
+    x = "Education",
+    y = "Predicted Probability of Winning"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "red", "Yes" = "blue"))
+
+```
+
+
+## Candidate Political History
+
+### 
+
+#### Key Findings:
+- **The candidates with prior political experience are less likely to win compared to candidates without political experience.**
+<br>
+- **The effect is not statistically significant (p = 0.451).**
+
+
+```{r, echo=FALSE}
+
+political_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n_distinct(Political.History) > 1)
+
+political_model <- glm(Win ~ Political.History, family = "binomial", data = political_filtered)
+
+odds_political <- exp(coef(political_model))
+
+
+political_filtered$Predicted_Prob_Political <- predict(political_model, type = "response")
+ggplot(political_filtered, aes(x = Political.History, y = Predicted_Prob_Political, color = Political.History)) +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  labs(
+    title = "Political History on Winning",
+    x = "Political History",
+    y = "Predicted Probability of Winning"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "red", "Yes" = "blue"))
+
+```
+
+## Candidate Business Ownership
+
+### 
+
+#### Key Findings:
+- **The candidates who are business owners are more likely to win compared to non-business owners**
+<br>
+- **The effect is not statistically significant (p = 0.323).**
+
+
+```{r, echo=FALSE}
+
+business_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n_distinct(Business.Owner) > 1)
+
+business_model <- glm(Win ~ Business.Owner, family = "binomial", data = business_filtered)
+
+
+odds_business <- exp(coef(business_model))
+
+business_filtered$Predicted_Prob_Business <- predict(business_model, type = "response")
+ggplot(business_filtered, aes(x = Business.Owner, y = Predicted_Prob_Business, color = Business.Owner)) +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  labs(
+    title = "Business Ownership on Winning",
+    x = "Business Ownership",
+    y = "Predicted Probability of Winning"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "red", "Yes" = "blue"))
+
+```
+
+## Combining All Three Credibility Characteristics
+
+### 
+
+#### Key Findings:
+
+- **The model suggests that candidates with formal education or prior political history are less likely to win.**
+<br>
+- **None of the three credibility traits—Education, Political History, or Business Ownership—are statistically significant predictors of winning**
+
+
+
+```{r, echo=FALSE}
+
+combined_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n() == 2) %>%
+  ungroup()  
+
+categorical_vars <- c("Education", "Political.History", "Business.Owner", "Win")
+combined_filtered[categorical_vars] <- lapply(combined_filtered[categorical_vars], factor)
+
+rf_combined_model <- randomForest(
+  Win ~ Education + Political.History + Business.Owner,
+  data = combined_filtered,
+  ntree = 500,
+  importance = TRUE
+)
+
+
+
+importance_df <- data.frame(
+  Variable = rownames(importance(rf_combined_model)),
+  Importance = importance(rf_combined_model)[, 1]
+)
+
+
+
+ggplot(importance_df, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(
+    title = "Credibility",
+    x = "Variable",
+    y = "Importance"
+  ) +
+  theme_minimal()
+
+combined_filtered$Predicted_Prob_RF <- predict(rf_combined_model, newdata = combined_filtered, type = "prob")[, 2]
+
+
+```
+
+# Putting it all together
+
+## Ideal candidite
+
+### 
+
+
+
+
+```{r, echo=FALSE}
+library(flextable)
+
+best_candidate <- data.frame(
+  Height = 165,
+  Facial = "No",
+  Age = 50,
+  War = "Yes",
+  GDP = 2,
+  Education = "Yes",
+  Political = "Yes",
+  Business = "No",
+  Party = "Democratic",
+  Predicted_Prob = 0.6544468
+)
+
+best_candidate_table <- flextable(best_candidate) %>%
+  autofit() %>% 
+  align(align = "center", part = "all") %>%  
+  fontsize(size = 10, part = "all")  
+
+best_candidate_table
+```
+
+
+## Ideal Candidate
+
+The SVM model with a radial kernel, using 9 predictors, identified 56.5% of winners and 58.5% of non-winners, showing moderate prediction ability.
+
+The model suggests the optimal candidate's shorter height reflects historical patterns, as factors like party, political history, and GDP growth have stronger links to winning. Height alone has little impact but may combine with other traits to influence outcomes.
+
+## Predicting the Candidate's Party that Will Win the Next Election
+
+### 
+
+#### Key Findings:
+- **The random forest model predicts a winning party error rate of 33.67%.**
+<br>
+- **The confusion matrix shows that the model classifies Democratic candidates correctly 69.39% of the time and Republican candidates correctly 63.27% of the time **
+
+
+```{r, echo=FALSE}
+
+data$Party <- as.factor(data$Party)
+
+rf_model <- randomForest(
+  Party ~ Height + Facial.Hair + Win + Age + War + GDP.Growth.Rate + Education + Political.History + Business.Owner,
+  data = data,
+  ntree = 500,
+  importance = TRUE
+)
+
+
+
+importance_df <- data.frame(
+  Variable = rownames(importance(rf_model)),
+  Importance = importance(rf_model)[, 1]
+)
+
+
+ggplot(importance_df, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(
+    title = "Importance in Predicting Winning Party",
+    x = "Variable",
+    y = "Importance"
+  ) +
+  theme_minimal()
+
+```
+
+
+
+## Conclusion
+
+Based upon the findings, we find that while the data highlights factors that benefit a candidates success, we cannot conclude that this is accurate due to the lack of statistical significance. But why does our research lead to this conclusion?
+
+- Change of ideologies
+- Sparse Data
+- Individual Bias
+- Data Collection
+
+
+---
