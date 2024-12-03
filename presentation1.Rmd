@@ -1,0 +1,198 @@
+---
+title: "U.S. Presidential Predictions"
+author: "Jacy Werner, Khaled Alketbi, Khalifa Alghaithi"
+date: "2024-12-03"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Introduction
+
+Throughout U.S. history, presidents have been inaugurated into office from all backgrounds. While this may appear random, we explored historical trends to analyze common components key to a candidate's success. This project focuses on three primary subsets:
+
+- Physical Characteristics
+- Economic Situation
+- Personal Credibility
+
+Data was collected from historical records (1832-2024) focusing on Democratic and Republican parties.
+
+
+---
+
+## Motivation
+
+With the 2024 election occurring this semester, we asked: **"Is it possible to predict the outcome of presidential elections and identify factors that contribute to a candidate's success?"**
+
+The project is motivated by a desire to understand the evolving qualifications and characteristics of U.S. presidential candidates.
+
+---
+
+## Methodology
+
+We used logistic regression models to analyze relationships between candidate traits and their likelihood of winning. Data collection challenges included:
+
+- Minimal historical data availability before modern records.
+- Influence of opinionated topics like family, wealth, and geography.
+
+
+---
+
+## Constraints
+
+Some constraints affected the credibility of our data and results:
+
+- Politics is opinionated; voter direction can be influenced by family, wealth, and geography.
+- Historical data before modern record-keeping is limited and inconsistent.
+- Methods of data storage have evolved, altering the reliability of older data.
+
+---
+
+## Candidates' Height
+
+### 
+
+#### Key Findings:
+- **Taller candidates have higher odds of winning.**  
+<br>
+- **For every 1 cm increase in height, odds increase by about 4.7%.**  
+<br>
+- **The effect is not statistically significant (p-value = 0.12).**
+```{r include=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r, echo=FALSE}
+
+
+data <- read.csv("Presidential-Physical-Characteristics (1).csv")
+
+data$Win <- factor(data$Win, levels = c("No", "Yes"))
+
+height_model <- glm(Win ~ Height, data = data, family = "binomial")
+data$Predicted_Prob <- predict(height_model, type = "response")
+
+ggplot(data, aes(x = Height, y = Predicted_Prob)) +
+  geom_point() +
+  labs(title = "Predicted Probability of Winning by Height",
+       x = "Height (cm)",
+       y = "Predicted Probability") +
+  theme_minimal()
+```
+
+
+## Candidates' Age
+
+### 
+
+#### Key Findings:
+- **Age has a small positive effect on winning.**  
+<br>
+- **Odds of winning increase by about 1.5% per year.**  
+<br>
+- **The effect is Not statistically significant (p-value = 0.538).**
+
+```{r, echo=FALSE}
+age_model <- glm(Win ~ Age, data = data, family = "binomial")
+data$Predicted_Prob_Age <- predict(age_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Age)) +
+  geom_point() +
+  labs(title = "Predicted Probability of Winning by Age",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal()
+```
+
+## Facial Hair
+
+### 
+
+#### Key Findings:
+- **Candidates with facial hair have about 18% lower odds of winning.**  
+<br>
+- **The effect is not statistically significant (p-value = 0.655).**  
+
+
+
+```{r, echo=FALSE}
+facial_hair_model <- glm(Win ~ Facial.Hair, data = data, family = "binomial")
+
+
+data$Predicted_Prob_FacialHair <- predict(facial_hair_model, type = "response")
+
+ggplot(data, aes(x = Facial.Hair, y = Predicted_Prob_FacialHair)) +
+geom_boxplot(alpha = 0.7, outlier.shape = 16, outlier.colour = "red") +  
+  geom_jitter(width = 0.1, alpha = 0.5, color = "black") 
+  labs(title = "Predicted Probability of Winning by Facial Hair",
+       x = "Facial Hair (Yes/No)",
+       y = "Predicted Probability") +
+  theme_minimal()
+```
+
+
+## Combining All Traits
+
+### 
+
+#### Key Findings:
+- **Height has the strongest positive association with winning (4.5% increase per cm).**  
+<br>
+- **Age and facial hair contribute minimally.**  
+<br>
+- **None of the traits are statistically significant predictors.**  
+
+
+```{r, echo=FALSE}
+combined_model <- glm(Win ~ Height + Age + Facial.Hair, data = data, family = "binomial")
+data$Predicted_Prob_Combined <- predict(combined_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Combined, color = Facial.Hair)) +
+  geom_point(aes(size = Height)) +
+  labs(title = "Predicted Probability of Winning by Age, Height, and Facial Hair",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "blue", "Yes" = "red"), name = "Facial Hair")
+```
+
+
+## Comparing Party Preferences
+
+
+### 
+
+#### Key Findings:
+- **For Democrats, Height has a statistically significant positive association with winning. the odds of winning (14.9% per cm).**  
+<br>
+- **For republicans Physical traits do not significantly influence winning outcomes.**  
+  
+
+
+```{r, echo=FALSE}
+data_democrats <- data %>% filter(Party == "Democratic")
+data_republicans <- data %>% filter(Party == "Republican")
+
+democrats_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_democrats, family = "binomial")
+data_democrats$Predicted_Prob <- predict(democrats_model, type = "response")
+
+republicans_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_republicans, family = "binomial")
+data_republicans$Predicted_Prob <- predict(republicans_model, type = "response")
+
+data_combined <- bind_rows(
+  data_democrats %>% mutate(Party = "Democratic"),
+  data_republicans %>% mutate(Party = "Republican")
+)
+
+ggplot(data_combined, aes(x = Age, y = Predicted_Prob, color = Party)) +
+  geom_point(aes(size = Height)) +
+  labs(title = "Predicted Probability of Winning by Party, Age, and Physical Attributes",
+       x = "Age (Years)",
+       y = "Predicted Probability") +
+  theme_minimal() +
+  scale_color_manual(values = c("Democratic" = "blue", "Republican" = "red"))
+```
