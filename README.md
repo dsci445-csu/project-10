@@ -12,7 +12,16 @@ This project explores to predict the outcome of presidential elections and ident
 * Data Preperation
 * Analysis Approach
 
+## Running the powerpoint and the pdf file
 
+* Step-by-step to run the project
+  - Step 1: Create a folder on your desktop and name it Group-10
+  - Step 2: Download Presidential Historical Data.csv from (Files) folder on github
+  - Step 3: Download Presidential characterstics.Rmd and presentation1.Rmd from (Rmd Files) folder on github
+  - Step 4: Move the downloaded files to Group-10 folder
+  - Step 5: Open Rstudio then create a new project by using  File > New Project > Existing Directory > (click on browse and             choose Group-10 folder that was created on your desktop)
+  - Step 6: On the output pane in rstudio click presentation1.rmd then click knit to run the presentation powerpoint
+  - Step 7: On the output pane in rstudio click Presdential characteristics.rmd then click knit to run the presdential                  characteristics pdf
 
 ## Economic Characteristics
 
