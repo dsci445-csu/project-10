@@ -7,11 +7,10 @@
 This project explores to predict the outcome of presidential elections and identify factors that contribute to a candidate's success. Through this, we explore two character subsets that help distinguish one candidate from another. For physical characteristics, the dataset includes key attributes such as an individuals height, age, facial hair, election results, election year, party affirmation, and name. For Credibility of the Candidates, the dataset includes education, political history, election year, party affirmation, candidate name, business ownership, and election results. By analyzing these historical trends, the project aims to provide insights into how physical/credibility attributes to a candidates success. 
 
 ## Data 
-The data was collected from 1832 till 2024. The data before 1832 is not reliable so we chose to not include it into our project. 
+The data was collected from 1832 till 2024. Due to the scarcity of the data before 1832 we decided to not include it in our project. The excel file was created from scratch by all of the contributing members of this project.
 
 ## Methods
-* Data Preperation
-* Analysis Approach
+We have prepared the data to be divided into two categories: The physicality, and credibilty of candidates. The models used were logistic regression, randomtree, and svm. 
 
 ## Running the powerpoint and the pdf file
 
