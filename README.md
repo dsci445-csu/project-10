@@ -24,16 +24,6 @@ The data was collected from 1832 till 2024. The data before 1832 is not reliable
   - Step 6: On the output pane in rstudio click presentation1.rmd then click knit to run the presentation powerpoint
   - Step 7: On the output pane in rstudio click Presdential characteristics.rmd then click knit to run the presdential                  characteristics pdf
 
-## Economic Characteristics
-
-* Step-by-step guide to import economic data
-* Step-by-step guide to write the code (Look at videos online, explains really well how to make it look good)
-* Findings/Models for each catagory (Unemployment rate, national dept, political history, education)
-* Discussion and Conclusions
-
-## License
-This project is licensed under...
-
 # Sources:
 
 - [Wikipedia - 1924 United States Presidential Election](https://en.wikipedia.org/wiki/1924_United_States_presidential_election)
