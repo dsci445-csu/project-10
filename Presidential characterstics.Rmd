@@ -1,0 +1,427 @@
+---
+title: "presdential characteristics"
+author: "Khaled alketbi"
+date: "2024-12-02"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Category 1: Physical Characteristics
+
+
+# Candidates heights
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+data <- read.csv("Presidential Historical Data.csv")
+
+data$Win <- factor(data$Win, levels = c("No", "Yes"))
+
+height_model <- glm(Win ~ Height, data = data, family = "binomial")
+
+summary(height_model)
+
+exp(coef(height_model))
+
+data$Predicted_Prob <- predict(height_model, type = "response")
+
+ggplot(data, aes(x = Height, y = Predicted_Prob)) +
+  geom_point() +
+  labs(title = "Odds of Winning by Height",
+       x = "Height (cm)",
+       y = "Odds") +
+  theme_minimal()
+```
+
+The logistic regression model shows a positive relationship between height and the likelihood of winning an election, with taller candidates having slightly higher odds of winning. For every 1 cm increase in height, the odds of winning increase by about 4.7%. However, the effect is not statistically significant (p-value = 0.12), meaning we cannot confidently conclude that height alone predicts election outcomes. While the model suggests a weak trend, other factors likely play a more substantial role in determining election results.
+
+
+# Candidates Age
+
+```{r}
+age_model <- glm(Win ~ Age, data = data, family = "binomial")
+
+summary(age_model)
+
+exp(coef(age_model))
+
+data$Predicted_Prob_Age <- predict(age_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Age)) +
+  geom_point() +
+  labs(title = "Odds of Winning by Age",
+       x = "Age (Years)",
+       y = "Odds") +
+  theme_minimal()
+
+```
+
+The model shows that age has a small positive effect on the likelihood of winning, with the odds of winning increasing by about 1.5% for every additional year of age. However, this effect is not statistically significant (p-value = 0.538), meaning there is insufficient evidence to conclude that age strongly impacts election outcomes. The residual deviance is nearly the same as the null deviance, indicating that adding age does not significantly improve the model's predictive power. Overall, age alone is not a meaningful predictor of winning elections in this dataset.
+
+
+
+
+# Candidates Facial Hair
+
+```{r}
+facial_hair_model <- glm(Win ~ Facial.Hair, data = data, family = "binomial")
+
+summary(facial_hair_model)
+
+exp(coef(facial_hair_model))
+
+data$Predicted_Odds_FacialHair <- exp(predict(facial_hair_model))
+ggplot(data, aes(x = as.factor(Facial.Hair), y = Predicted_Odds_FacialHair)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 16, outlier.colour = "red") +  
+  geom_jitter(width = 0.1, alpha = 0.5, color = "blue") +
+  stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "darkgreen", aes(group = 1)) +
+  scale_x_discrete(labels = c("No", "Yes")) +  # Relabel x-axis
+  labs(title = "Odds of Winning by Facial Hair",
+       x = "Facial Hair",
+       y = "Odds") +
+  theme_minimal() +  
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  ) 
+```
+The model suggests that candidates with facial hair have about 18% lower odds of winning compared to those without, as indicated by the odds ratio of 0.819. However, this effect is not statistically significant (p-value = 0.655), meaning there is insufficient evidence to conclude that facial hair impacts election outcomes. The Odds of winning are nearly identical for candidates with and without facial hair, as shown in the plot. Overall, facial hair alone does not appear to be a strong predictor of winning in this dataset.
+
+## Combining all three traits
+
+```{r}
+combined_model <- glm(Win ~ Height + Age + Facial.Hair, data = data, family = "binomial")
+
+summary(combined_model)
+
+exp(coef(combined_model))
+
+data$Predicted_Prob_Combined <- predict(combined_model, type = "response")
+
+ggplot(data, aes(x = Age, y = Predicted_Prob_Combined, color = Facial.Hair)) +
+  geom_point(aes(size = Height)) +
+  labs(title = "Odd of Winning by Age, Height, and Facial Hair",
+       x = "Age (Years)",
+       y = "Odds") +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "red", "Yes" = "green"), name = "Facial Hair")
+```
+The combined model shows that height has the strongest positive association with winning, with odds increasing by 4.5% for every additional cm, but this effect is not statistically significant (p-value = 0.150). Age and facial hair contribute minimally, with no significant impact on the likelihood of winning. The model fit is weak, as indicated by a small improvement in deviance and an AIC of 141.26, suggesting physical traits alone are poor predictors of election outcomes. Overall, none of the traits significantly influence winning when combined, and other factors likely play a larger role.
+
+# Comparing which party cares more about physical atributes
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+data$Party <- as.factor(data$Party)
+data$Win <- as.factor(data$Win)
+data$Facial.Hair <- as.factor(data$Facial.Hair)
+
+data_democrats <- data %>% filter(Party == "Democratic")
+data_republicans <- data %>% filter(Party == "Republican")
+
+democrats_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_democrats, family = "binomial")
+democrats_summary <- summary(democrats_model)
+democrats_odds <- exp(coef(democrats_model))
+
+print("Democrats Model Summary:")
+print(democrats_summary)
+print("Democrats Odds Ratios:")
+print(democrats_odds)
+
+republicans_model <- glm(Win ~ Height + Age + Facial.Hair, data = data_republicans, family = "binomial")
+republicans_summary <- summary(republicans_model)
+republicans_odds <- exp(coef(republicans_model))
+
+print("Republicans Model Summary:")
+print(republicans_summary)
+print("Republicans Odds Ratios:")
+print(republicans_odds)
+
+data_democrats$Predicted_Prob <- predict(democrats_model, type = "response")
+data_republicans$Predicted_Prob <- predict(republicans_model, type = "response")
+
+data_combined <- bind_rows(
+  data_democrats %>% mutate(Party = "Democratic"),
+  data_republicans %>% mutate(Party = "Republican")
+)
+
+ggplot(data_combined, aes(x = Age, y = Predicted_Prob, color = Party, size = Height)) +
+  geom_point(alpha = 0.7) +
+  labs(
+    title = "Odds of Winning by Party, Age, and Height",
+    x = "Age (Years)",
+    y = "Odds",
+    color = "Party",
+    size = "Height (cm)"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("Democratic" = "blue", "Republican" = "red"))
+```
+
+
+For Democrats, Height has a statistically significant positive association with winning, with an odds ratio of 1.15, indicating taller candidates are slightly more likely to win. However, Age and Facial Hair are not significant predictors for Democrats, suggesting they have minimal influence on electoral success. For Republicans, none of the physical attributes (Height, Age, or Facial Hair) significantly predict winning, as all p-values are much greater than 0.05, and the odds ratios are close to 1. The results suggest that Democrats may consider height more than Republicans in candidate preferences, while other physical attributes appear to have little importance for either party.
+
+
+
+## Category 2: Credibility
+
+#Candidate Education
+
+```{r}
+library(dplyr)
+
+education_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n_distinct(Education) > 1)
+
+education_model <- glm(Win ~ Education, family = "binomial", data = education_filtered)
+summary(education_model)
+
+odds_education <- exp(coef(education_model))
+print("Odds Ratios for Education:")
+print(odds_education)
+
+library(ggplot2)
+education_filtered$Predicted_Prob_Education <- predict(education_model, type = "response")
+ggplot(education_filtered, aes(x = Education, y = Predicted_Prob_Education, color = Education)) +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  labs(
+    title = "Impact of Education on Winning (Filtered Data)",
+    x = "Education",
+    y = "Odds of Winning"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "red", "Yes" = "blue"))
+
+
+```
+
+The logistic regression model indicates that candidates with formal education (Education = Yes) have an odds ratio of 0.60, suggesting they are slightly less likely to win compared to candidates without formal education. However, this effect is not statistically significant (p = 0.481), meaning the difference could be due to chance. The intercept’s odds ratio of 1.29 represents the baseline odds of winning for candidates without education. Overall, education does not appear to play a meaningful role in predicting election outcomes when candidates differ in this trait.
+
+#Candidate Politcal History
+
+```{r}
+political_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n_distinct(Political.History) > 1)
+
+political_model <- glm(Win ~ Political.History, family = "binomial", data = political_filtered)
+summary(political_model)
+
+odds_political <- exp(coef(political_model))
+print("Odds Ratios for Political History:")
+print(odds_political)
+
+political_filtered$Predicted_Prob_Political <- predict(political_model, type = "response")
+ggplot(political_filtered, aes(x = Political.History, y = Predicted_Prob_Political, color = Political.History)) +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  labs(
+    title = "Impact of Political History on Winning (Filtered Data)",
+    x = "Political History",
+    y = "Odds of Winning"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "red", "Yes" = "blue"))
+
+
+
+
+```
+The model shows that candidates with prior political experience (Political.History = Yes) have an odds ratio of 0.56, indicating they are less likely to win compared to candidates without political experience. This effect is also not statistically significant (p = 0.451), suggesting that prior political experience may not strongly influence the outcome. The intercept’s odds ratio of 1.33 represents the baseline odds of winning for candidates without political history. Therefore, political history does not seem to significantly affect a candidate’s chances of winning when differences exist.
+
+
+#Candidate Business Ownership
+
+
+```{r}
+business_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n_distinct(Business.Owner) > 1)
+
+business_model <- glm(Win ~ Business.Owner, family = "binomial", data = business_filtered)
+summary(business_model)
+
+odds_business <- exp(coef(business_model))
+print("Odds Ratios for Business Ownership:")
+print(odds_business)
+
+
+business_filtered$Predicted_Prob_Business <- predict(business_model, type = "response")
+ggplot(business_filtered, aes(x = Business.Owner, y = Predicted_Prob_Business, color = Business.Owner)) +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  labs(
+    title = "Impact of Business Ownership on Winning (Filtered Data)",
+    x = "Business Ownership",
+    y = "Odds of Winning"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("No" = "red", "Yes" = "blue"))
+
+```
+The logistic regression model reveals that candidates who are business owners (Business.Owner = Yes) have an odds ratio of 2.78, meaning they are more likely to win compared to non-business owners. However, this effect is not statistically significant (p = 0.323), so the result could be due to random variation. The intercept’s odds ratio of 0.60 represents the baseline odds of winning for non-business owners. While business ownership shows a positive association with winning, the lack of significance means this result should be interpreted with caution.
+
+
+#Combining all three credibility Charactersitics
+
+```{r}
+library(randomForest)
+library(dplyr)
+library(ggplot2)
+
+combined_filtered <- data %>%
+  group_by(Year) %>%
+  filter(n() == 2) %>%
+  ungroup()
+
+categorical_vars <- c("Education", "Political.History", "Business.Owner", "Win")
+combined_filtered[categorical_vars] <- lapply(combined_filtered[categorical_vars], factor)
+
+rf_combined_model <- randomForest(
+  Win ~ Education + Political.History + Business.Owner,
+  data = combined_filtered,
+  ntree = 500,
+  importance = TRUE
+)
+
+print(rf_combined_model)
+
+combined_filtered$Predicted_Odds_RF <- predict(rf_combined_model, newdata = combined_filtered, type = "prob")[, 2] / (1 - predict(rf_combined_model, newdata = combined_filtered, type = "prob")[, 2])
+
+unique_combinations <- unique(combined_filtered[, c("Education", "Business.Owner")])
+
+for (i in 1:nrow(unique_combinations)) {
+  combination <- unique_combinations[i, ]
+  subset_data <- combined_filtered %>% 
+    filter(Education == combination$Education & Business.Owner == combination$Business.Owner)
+  
+  plot <- ggplot(subset_data, aes(x = Political.History, y = Predicted_Odds_RF, size = Predicted_Odds_RF, color = Win)) +
+    geom_point(alpha = 0.7) +
+    scale_size_continuous(range = c(2, 10), name = "Odds") +
+    scale_color_manual(values = c("No" = "red", "Yes" = "blue"), name = "Outcome") +
+    labs(
+      title = paste("Predicted Odds of Winning",
+                    "(Education:", combination$Education, ", Business Owner:", combination$Business.Owner, ")"),
+      x = "Political History",
+      y = "Predicted Odds of Winning"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+      axis.title = element_text(size = 12),
+      axis.text = element_text(size = 10)
+    )
+  
+  print(plot)
+}
+```
+
+
+The model suggests that none of the three credibility traits—Education, Political History, or Business Ownership—are statistically significant predictors of winning. Candidates with formal education or prior political history are slightly less likely to win, with odds ratios of 0.58 and 0.66, respectively. In contrast, being a business owner is associated with higher odds of winning (2.03), though this effect is not statistically significant. Overall, these traits alone do not seem to strongly influence election outcomes based on the data.
+
+
+#putting it all together
+
+#ideal candidate
+
+```{r}
+library(caret)
+library(e1071)
+
+categorical_vars <- c("Party", "Facial.Hair", "Win", "Education", "Political.History", "Business.Owner", "War")
+data[categorical_vars] <- lapply(data[categorical_vars], as.factor)
+
+numeric_vars <- c("Height", "Age", "GDP.Growth.Rate")
+data[numeric_vars] <- lapply(data[numeric_vars], as.numeric)
+
+train_control <- trainControl(
+  method = "cv",             
+  number = 10,                
+  classProbs = TRUE,          
+  summaryFunction = twoClassSummary  
+)
+
+set.seed(445) 
+svm_model <- train(
+  Win ~ Height + Facial.Hair + Age + War + GDP.Growth.Rate + 
+         Education + Political.History + Business.Owner + Party,
+  data = data,
+  method = "svmRadial",
+  trControl = train_control,
+  metric = "ROC"
+)
+
+print(svm_model)
+
+hypothetical_candidates <- expand.grid(
+  Height = c(165, 175, 185),
+  Facial.Hair = factor(c("Yes", "No"), levels = levels(data$Facial.Hair)),
+  Age = c(40, 50, 60),
+  War = factor(c("Yes", "No"), levels = levels(data$War)),
+  GDP.Growth.Rate = c(2, 4, 6),
+  Education = factor(c("Yes", "No"), levels = levels(data$Education)),
+  Political.History = factor(c("Yes", "No"), levels = levels(data$Political.History)),
+  Business.Owner = factor(c("Yes", "No"), levels = levels(data$Business.Owner)),
+  Party = factor(c("Democratic", "Republican"), levels = levels(data$Party))
+)
+
+hypothetical_candidates$Predicted_Prob <- predict(svm_model, newdata = hypothetical_candidates, type = "prob")[, "Yes"]
+
+best_candidate <- hypothetical_candidates[which.max(hypothetical_candidates$Predicted_Prob), ]
+print("Best Candidate Profile:")
+print(best_candidate)
+```
+The SVM model with a radial basis function kernel, using 9 predictors, achieved an ROC of 0.574 at optimal parameters C = 1 and sigma = 0.09057841, showing moderate ability to predict outcomes. It correctly identified 56.5% of winners and 58.5% of non-winners, making it balanced but with room for improvement.
+
+Why the optimal candidate is shorter?
+
+The optimal candidate's height is determined by historical patterns in the data, and the model prioritizes characteristics like party affiliation, political history, or GDP growth that have stronger correlations with winning. Height might not significantly influence outcomes on its own but could play a role in combination with other factors, which the model captures through complex interactions.
+
+#Predicting the party that will probably win in the next election
+
+```{r}
+library(randomForest)
+
+rf_model <- randomForest(
+  Party ~ Height + Facial.Hair + Win + Age + War + GDP.Growth.Rate + 
+           Education + Political.History + Business.Owner,
+  data = data,
+  ntree = 500,
+  importance = TRUE
+)
+
+print(rf_model)
+
+importance_df <- data.frame(
+  Variable = rownames(importance(rf_model)),
+  Importance = importance(rf_model)[, 1]
+)
+print("Variable Importance:")
+print(importance_df)
+
+ggplot(importance_df, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(
+    title = "Variable Importance in Predicting Winning Party",
+    x = "Variable",
+    y = "Importance"
+  ) +
+  theme_minimal()
+
+```
+The random forest model predicts the winning party with an out-of-bag (OOB) error rate of 33.67%, meaning it misclassifies approximately one-third of the samples. The confusion matrix shows that the model classifies Democratic candidates correctly 69.39% of the time (class error 30.61%) and Republican candidates correctly 63.27% of the time (class error 36.73%). These results indicate that while the model performs better than random guessing, it still struggles with consistent accuracy, particularly when distinguishing Republican winners. The next step would be to analyze the variable importance scores to identify which predictors have the greatest influence on determining the winning party.
+
+
+
+
+
+
+
