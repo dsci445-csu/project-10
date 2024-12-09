@@ -78,7 +78,7 @@ library(flextable)
 ```{r, echo=FALSE}
 
 
-data <- read.csv("Presidential Historical Data.csv.csv")
+data <- read.csv("Presidential Historical Data.csv")
 
 data$Win <- factor(data$Win, levels = c("No", "Yes"))
 
