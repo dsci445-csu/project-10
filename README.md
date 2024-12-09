@@ -4,7 +4,7 @@
 
 ## Introduction
 
-This project explores to predict the outcome of presidential elections and identify factors that contribute to a candidate's success. Through this, we explore two character subsets that help distinguish one candidate from another. For physical characteristics, the dataset includes key attributes such as an individuals height, age, facial hair, election results, election year, party affirmation, and name. For economical characteristics, the dataset includes current unemployment rate, education, political history, election year, party affirmation, candidate name, and election results. By analyzing these historical trends, the project aims to provide insights into how physical/economic attributes to a candidates success. 
+This project explores to predict the outcome of presidential elections and identify factors that contribute to a candidate's success. Through this, we explore two character subsets that help distinguish one candidate from another. For physical characteristics, the dataset includes key attributes such as an individuals height, age, facial hair, election results, election year, party affirmation, and name. For Credibility of the Candidates, the dataset includes education, political history, election year, party affirmation, candidate name, business ownership, and election results. By analyzing these historical trends, the project aims to provide insights into how physical/credibility attributes to a candidates success. 
 
 ## Data 
 
@@ -12,12 +12,7 @@ This project explores to predict the outcome of presidential elections and ident
 * Data Preperation
 * Analysis Approach
 
-## Physical Characteristics
 
-* Step-by-step guide to import data
-* Step-by-step guide to write the code (Look at videos online, explains really well how to make it look good)
-* Findings/Models for each catagory (age, height, facial hair)
-* Discussion and Conclusions
 
 ## Economic Characteristics
 
