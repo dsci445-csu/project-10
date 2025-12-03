@@ -1,0 +1,164 @@
+---
+title: "First_EDA"
+output: html_document
+---
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(nflfastR)
+library(ggplot2)
+library(tidyverse)
+pbp <- load_pbp()
+
+```
+
+# EDA and Data Cleaning
+
+# Andrew work
+
+```{r}
+pbp_raw <- pbp
+
+# Possible Predictors of Interest
+pbp_raw <- pbp_raw |>
+  dplyr::select(game_id, play_id, posteam, defteam, season, week, down, ydstogo,
+         yardline_100, qtr, half_seconds_remaining, game_seconds_remaining,
+         score_differential, posteam_timeouts_remaining, 
+         defteam_timeouts_remaining, play_type, rush, pass, qb_dropback, penalty,
+         field_goal_attempt, punt_attempt, yards_gained, epa, success, wp, wpa)
+
+# Get rid of non-4th downs and plays that do not have a play type listed
+pbp_4th <- pbp_raw |>
+  filter(down == 4, !is.na(play_type))
+
+pbp_4th <- as.data.frame(pbp_4th)
+tail(pbp_4th)
+
+
+```
+
+
+
+```{r}
+fourth <- pbp %>%
+  filter(down == 4, !is.na(fourth_down_converted))
+
+
+ggplot(fourth, aes(
+  x = ydstogo,
+  y = as.numeric(fourth_down_converted),
+  color = factor(fourth_down_converted, labels = c("Failed", "Converted")),
+  shape = factor(fourth_down_converted, labels = c("Failed", "Converted"))
+)) +
+  geom_jitter(alpha = 0.6, width = 0.3, height = 0.05, size = 3) +
+  scale_y_continuous(
+    breaks = c(0,1),
+    labels = c("Failed", "Converted")
+  ) +
+  labs(
+    title = "4th Down Conversions by Yards to Go",
+    x = "Yards to Go",
+    y = "Outcome",
+    color = "Conversion",
+    shape = "Conversion"
+  ) +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+fourth_all <- pbp |>
+  filter(down == 4)
+
+# create a decision type variable 
+fourth_all <- fourth_all |>
+  mutate(
+    decision = case_when(
+    play_type == "punt" ~ "Punt",
+    play_type == "field_goal" ~ "Field Goal",
+    play_type %in% c("run", "pass", "qb_kneel", "qb_spike", "scramble", "sack") ~ "Go For It",
+    TRUE ~ NA_character_
+    )
+  ) |>
+  filter(!is.na(decision))
+
+# Helper Function to compute % choice for any availible 
+
+make_decision_share <- function(data, var, bins = 20) {
+  
+  var_sym <- rlang::ensym(var)
+  
+  data |>
+    mutate(
+      var_bin = if (is.numeric(.data[[rlang::as_string(var_sym)]])) {
+        cut(.data[[rlang::as_string(var_sym)]], bins)
+      } else {
+        as.factor(.data[[rlang::as_string(var_sym)]])
+      }
+    ) |>
+    group_by(var_bin, decision) |>
+    summarise(n = n(), .groups = "drop") |>
+    group_by(var_bin) |>
+    mutate(share = n/sum(n)) |>
+    ungroup()
+}
+
+# General Plot for Every Variable 
+
+plot_decision_share <- function(df, var) {
+  ggplot(df, aes(x = var_bin, y = share, fill = decision)) +
+    geom_col(position = "fill") +
+    labs(
+      title = paste("4th Down Decision Percentages by", var),
+      x = var,
+      y = "Percent of Decisions",
+      fill = "Decision Type"
+    ) +
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+
+```
+
+```{r}
+# Decision % per yardline (yardline_100)
+
+by_yl <- make_decision_share(fourth_all, yardline_100, bins = 20)
+plot_decision_share(by_yl, "Field Position (yardline_100)")
+
+```
+
+```{r}
+# Decision % by Distance
+by_dist <- make_decision_share(fourth_all, ydstogo, bins = 12)
+plot_decision_share(by_dist, "Yards to Go")
+
+```
+
+```{r} 
+# Decision % by Score Differential
+by_score <- make_decision_share(fourth_all, score_differential, bins = 20)
+plot_decision_share(by_score, "Score Differential")
+
+```
+
+```{r}
+# Decision P% by Quarter
+by_q <- make_decision_share(fourth_all, qtr)
+plot_decision_share(by_q, "Quarter")
+
+```
+
+
+
+
+
+
+
+
