@@ -1,0 +1,153 @@
+---
+title: "model_work"
+output: html_document
+---
+#################
+## Andrew Work ##
+#################
+
+```{r}
+library(nflfastR)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(janitor)
+library(tidymodels)
+library(randomForest)
+library(xgboost)
+library(vip)
+library(caret)
+```
+
+```{r}
+set.seed(123)
+
+train_index <- createDataPartition(fourth_model$decision, p = 0.8, list = FALSE)
+
+train <- fourth_model[train_index, ]
+test  <- fourth_model[-train_index, ]
+
+```
+
+
+# Random Forest
+
+```{r}
+rf_model <- randomForest(
+  decision ~ ., 
+  data = train,
+  ntree = 500,
+  importance = TRUE
+)
+
+```
+
+```{r}
+rf_pred_train <- predict(rf_model, train)
+rf_pred_test  <- predict(rf_model, test)
+
+confusionMatrix(rf_pred_train, train$decision)
+confusionMatrix(rf_pred_test,  test$decision)
+
+```
+
+```{r}
+importance(rf_model)
+varImpPlot(rf_model)
+
+```
+
+```{r}
+predictors_rf <- setdiff(names(train), "decision")
+predictors_rf
+
+```
+
+# XGBoost
+
+```{r}
+# Recipe for preprocessing
+rec <- recipe(decision ~ ., data = train) |> 
+  step_dummy(all_nominal_predictors()) |> 
+  step_zv(all_predictors()) |> 
+  prep(training = train)
+
+train_mat <- bake(rec, new_data = train) |> 
+  select(-decision) |> as.matrix()
+train_label <- train$decision |> as.numeric() - 1 # 0,1,2
+
+test_mat <- bake(rec, new_data = test) |> 
+  select(-decision) |> as.matrix()
+test_label <- test$decision |> as.numeric() - 1
+
+xgb_data <- xgb.DMatrix(data = train_mat, label = train_label)
+xgb_test  <- xgb.DMatrix(data = test_mat,  label = test_label)
+
+# Train XGBoost
+params <- list(
+  objective = "multi:softmax",
+  num_class = 3,
+  max_depth = 6,
+  eta = 0.05,
+  subsample = 0.8,
+  colsample_bytree = 0.8
+)
+
+xgb_fit <- xgb.train(
+  params = params,
+  data = xgb_data,
+  nrounds = 500,
+  verbose = 0
+)
+
+# Predictions
+xgb_pred <- predict(xgb_fit, xgb_test)
+
+# Accuracy
+mean(xgb_pred == test_label)
+
+
+```
+
+```{r}
+xgb.importance(model = xgb_fit) |> 
+  xgb.plot.importance(top_n = 10)
+
+```
+
+```{r}
+train_baked <- bake(rec, new_data = train)
+predictors_xgb <- setdiff(names(train_baked), "decision")
+predictors_xgb
+
+```
+
+##
+Takeaways from initial models:
+##
+
+Very overfit: we can see the model is memorising the training data, and then maintaining accuracy in test via overabundance of  punt/kick situations that are easily predictable situations. 
+
+Overall goal is to be able to "predict" game situations. Instead of train/test split on entire dataset, subset years for train/test. Clean up model more as to not "leak" information ex game_id. 
+
+Build "historacle" game situations to enter and model to predict...include what actually happened and possible expert analysis or general public thoughts
+
+Optional: Extend to predicting play type in go for it situations with a seperate pass run model. 
+
+###
+
+###
+New Model Run - Andrew
+###
+
+
+
+
+
+
+
+
+
+
+
+
