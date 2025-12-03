@@ -157,6 +157,127 @@ plot_decision_share(by_q, "Quarter")
 
 
 
+# Zach's Work
+
+```{r}
+#######
+# Average WPA by decision and yards-to-go bin
+#######
+
+wpa_by_dist <- fourth_all %>%
+  filter(!is.na(wpa)) %>%
+  mutate(
+    ydstogo_bin = cut(
+      ydstogo,
+      breaks = c(0, 2, 4, 6, 8, 10, Inf),
+      right = FALSE,
+      include.lowest = TRUE
+    )
+  ) %>%
+  group_by(ydstogo_bin, decision) %>%
+  summarise(
+    n = n(),
+    mean_wpa = mean(wpa, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Plot how good each decision has been, on average, by yards to go bin
+ggplot(wpa_by_dist, aes(
+  x = ydstogo_bin, 
+  y = mean_wpa,
+  color = decision,
+  group = decision
+)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Mean WPA by 4th-Down Decision and Yards to Go",
+    x = "Yards to Go (binned)",
+    y = "Mean Win Probability Added",
+    color = "Decision"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Cleaning
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+
+library(janitor)
+```
+
+```{r}
+fourth <- pbp |> 
+  filter(down == 4, !is.na(posteam)) |> 
+  mutate(
+    decision = case_when(
+      play_type == "punt" ~ "punt",
+      play_type == "field_goal" ~ "field_goal",
+      play_type %in% c("run","pass") ~ "go_for_it",
+      TRUE ~ NA_character_
+    )
+  ) |> 
+  filter(!is.na(decision))
+
+```
+
+
+```{r}
+# Feature Engineer:
+##       - score differential
+##       - own_half -> what side of field 
+##       - log scale yards to go
+fourth_model <- fourth |> 
+  mutate(
+    score_diff = posteam_score - defteam_score,
+    own_half = ifelse(yardline_100 > 50, 1, 0),
+    log_ydstogo = log1p(ydstogo)
+  ) |> 
+  select(decision, yardline_100, ydstogo, log_ydstogo, score_diff,
+         qtr, game_seconds_remaining, half_seconds_remaining,
+         own_half, season, week, roof, surface) |> 
+  drop_na() |> 
+  mutate(across(where(is.character), factor))
+
+
+#saveRDS(fourth_model, "fourth_model.rds")
+
+```
+
+
+## Furthur Cleaning Post-First Model Run-Through
+# Remove leaky / redundant features
+# Bin some continuous variables to reduce memorization
+# Optionally remove the original columns after binning
+
+```{r}
+
+fourth_model_clean <- fourth_model %>%
+  select(-log_ydstogo, -season, -week) %>%
+  
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long"))
+  ) %>%
+  
+  select(-yardline_100, -ydstogo)
+
+
+```
+
+
+
+
+
 
 
 
