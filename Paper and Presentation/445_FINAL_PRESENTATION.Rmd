@@ -1,0 +1,914 @@
+---
+title: "445 Presentation"
+author: 
+  - Zach Goldstein
+  - Sam Rolsten
+  - Andrew Davenport
+  - Ryan Lang
+date: "`r Sys.Date()`"
+output:
+  beamer_presentation:
+    theme: "PaloAlto"
+    colortheme: "spruce"
+    fonttheme: "structurebold"
+---
+
+
+```{r setup, include=FALSE}
+# These knit options prevent weird warnings from showing up when knitting the presentation
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  cache = FALSE)
+
+# load in libraries here
+library(ggplot2)
+library(tidyverse)
+library(tinytex)
+library(dplyr)
+library(nflfastR)
+library(tidyverse)
+library(gridExtra)
+library(tidyr)
+library(janitor)
+library(tidymodels)
+library(randomForest)
+library(xgboost)
+library(vip)
+library(caret)
+library(readr)
+library(knitr)
+library(kableExtra)
+library(ranger)
+```
+
+  
+```{r global_eda_setup, include=FALSE}
+
+# Build main filtered datasets
+fourth <- readRDS("fourth.rds")
+
+
+fourth_all <- readRDS("fourth_all.rds")
+
+
+
+
+# Helper functions
+make_decision_share <- function(data, var, bins = 20) {
+  var_sym <- rlang::ensym(var)
+  data %>%
+    mutate(
+      var_bin = if (is.numeric(.data[[rlang::as_string(var_sym)]])) {
+        cut(.data[[rlang::as_string(var_sym)]], bins)
+        } else {
+          as.factor(.data[[rlang::as_string(var_sym)]])
+          }) %>%
+    group_by(var_bin, decision) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    group_by(var_bin) %>%
+    mutate(share = n/sum(n)) %>%
+    ungroup()
+  }
+
+
+plot_decision_share <- function(df, var) {
+  ggplot(df, aes(x = var_bin, y = share, fill = decision)) +
+    geom_col(position = "fill") +
+    labs( title = paste("4th Down Decision Percentages by", var),
+          x = var,
+          y = "Percent of Decisions",
+          fill = "Decision Type") +
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal(base_size = 18) + # larger base font
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+      axis.text.y = element_text(size = 16),
+      plot.title = element_text(size = 20))}
+
+
+# Pre-compute grouped data
+by_yl <- make_decision_share(fourth_all, yardline_100, bins = 20)
+by_dist <- make_decision_share(fourth_all, ydstogo, bins = 12)
+by_score <- make_decision_share(fourth_all, score_differential, bins = 20)
+by_q <- make_decision_share(fourth_all, qtr)
+```
+
+# Problem Description
+
+- Wanted to predict what NFL teams should do on 4th down
+- Can either punt, kick a field goal, or go for it
+- From those options, if they go for it, can either run or pass the ball
+
+## Data Insight
+
+- Selected the **nflfastR** data set
+- Filtered down to only 4th down plays from 1999-2025
+- Split the data into training set (1999-2019) and test set (2021-2025)
+
+
+# Data Pre-processing
+
+
+## Overview of Cleaning & Variable Selection
+- Loaded full play-by-play dataset (1999–2025) using **nflfastR**.
+- Selected key predictors:
+- Game context: season, week, quarter, game clock, score differential
+- Field context: yardline_100, ydstogo, posteam/defteam timeouts
+- Play descriptors: rush, pass, penalty, EPA/WPA, success
+- Created a unified **decision** variable:
+
+# Data Pre-processing
+
+## Additional Feature Engineering
+- Added intuitive indicators:
+  - `close_game` (within 7 points)
+  - `short_to_go` (<=  3 yards)
+  - `must_go` (trailing, < 5 minutes in 4Q)
+  
+- Binned variables to reduce model memorization:
+  - `yardline_zone`: red_zone_own / mid_field / red_zone_opponent
+  - `ydstogo_bin`: short / medium / long / very_long
+
+# Decision Percentage: Yards to Go
+
+```{r, echo=FALSE, fig.width=6, fig.height=3}
+ggplot(by_dist, aes(x = var_bin, y = share, fill = decision)) +
+  geom_col(position = "fill") +
+  labs(
+    title = "4th Down Decisions by Yards to Go",
+    x = NULL,
+    y = "Percent of Decisions",
+    fill = "Decision Type"
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+
+  scale_x_discrete(
+    breaks = by_dist$var_bin[seq(1, length(by_dist$var_bin), by = 15)]
+  ) +
+
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 18),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 14)
+  )
+
+```
+
+- Longer distances strongly favor punts.
+- Short-yardage situations increase aggressiveness.
+
+# Decision Percentage: Score Differential
+
+```{r, echo=FALSE, fig.width=6, fig.height=3}
+ggplot(by_score, aes(x = var_bin, y = share, fill = decision)) +
+  geom_col(position = "fill") +
+  labs(
+    title = "4th Down Decisions by Score Differential",
+    x = NULL,
+    y = "Percent of Decisions",
+    fill = "Decision Type"
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_discrete(
+    breaks = by_score$var_bin[seq(1, length(by_score$var_bin), by = 25)]
+  ) +
+
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 18),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 14)
+  )
+
+```
+
+- Trailing teams are more aggressive.
+- Leading teams favor safer options.
+
+# Feature Selection 
+
+- In order to start building a model to predict 4th down decision, we needed to go through our data set and extract only the the features that had actual predictive power. 
+  - To start this process we split the data into our train/test data. 
+  - We defined our `train` to be every 4th down play from the 1999 NFL season to the 2019 season
+  - We defined our `test` to be every 4th down play from the 2021 NFL season to current day. Excluding COIVD 
+  
+```{r, include = FALSE}
+# Feature Engineer:
+##       - score differential
+##       - own_half -> what side of field 
+##       - log scale yards to go
+
+fourth1 <- readRDS("fourth1.rds")
+
+fourth_model <- fourth1 |> 
+  mutate(
+    score_diff = posteam_score - defteam_score,
+    own_half = ifelse(yardline_100 > 50, 1, 0),
+    log_ydstogo = log1p(ydstogo)
+  ) |> 
+  select(decision, yardline_100, ydstogo, log_ydstogo, score_diff,
+         qtr, game_seconds_remaining, half_seconds_remaining,
+         own_half, season, week, roof, surface) |> 
+  drop_na() |> 
+  mutate(across(where(is.character), factor))
+
+
+#saveRDS(fourth_model, "fourth_model.rds")
+
+```
+
+```{r, cache=TRUE}
+library(tidymodels)
+
+# Test/Train by years
+train_data <- fourth_model |> filter(season <= 2019)
+test_data  <- fourth_model |> filter(season >= 2021 & season != 2020 )
+
+set.seed(123)
+
+# Feature selection(LASSO) finds which var is important & reduces overfitting
+rec <- recipe(decision ~ ., data = train_data) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_predictors())
+
+lasso_spec <- multinom_reg(
+  penalty = tune(),   # λ
+  mixture = 1         # 1 = pure lasso
+) |>
+  set_engine("glmnet")
+
+wf_lasso <- workflow() |>
+  add_recipe(rec) |>
+  add_model(lasso_spec)
+
+set.seed(123)
+folds <- vfold_cv(train_data, v = 5)
+
+grid <- tibble(penalty = 10^seq(-4, 1, length.out = 30))
+
+lasso_res <- tune_grid(
+  wf_lasso,
+  resamples = folds,
+  grid = grid,
+  metrics = metric_set(accuracy, mn_log_loss)
+)
+
+best_lasso <- select_best(lasso_res, metric = "mn_log_loss")
+
+lasso_fit <- finalize_workflow(wf_lasso, best_lasso) |>
+  fit(data = train_data)
+
+```
+
+# Feature Selection Results 
+
+- After performing 5 fold cross validation to tune of LASSO function it was able to output the 20 most predictive features in our data set of 374 features 
+
+```{r, cache=TRUE}
+# Extracting the selected features 
+lasso_glmnet <- lasso_fit |>
+  extract_fit_parsnip() |>
+  pluck("fit")
+
+# get coefficients at best lambda
+coef_list <- glmnet::coef.glmnet(lasso_glmnet, s = best_lasso$penalty)
+
+# each element in coef_list is a class (field_goal, go_for_it, punt)
+# Find predictors that are nonzero for at least one class:
+nz_features <- unique(unlist(lapply(coef_list, function(m) {
+  rownames(m)[as.vector(m != 0)]
+})))
+
+nz_features <- setdiff(nz_features, "(Intercept)")
+
+# nz_features are the LASSO selected features 
+n_cols <- 3  # how many columns you want on the slide
+
+n <- length(nz_features)
+pad <- ceiling(n / n_cols) * n_cols - n   # how many blanks to add
+nz_pad <- c(nz_features, rep("", pad))    # pad so it fills the matrix
+
+feat_mat <- matrix(nz_pad, ncol = n_cols, byrow = TRUE)
+
+kable(feat_mat, col.names = paste("Feature", 1:n_cols)) |>
+  kable_styling(font_size = 7, latex_options = "scale_down")
+```
+
+- After finding these important features we redefine our train/test data to only include the LASSO selected features 
+
+```{r, cache=TRUE, include=FALSE}
+# Removes outcome from list
+nz_features_clean <- setdiff(nz_features, c("(Intercept)", "decision"))
+nz_features_clean
+```
+
+
+```{r, cache=TRUE, include=FALSE}
+# Come back to (redundent?)
+rec_prep <- prep(rec, training = train_data, retain = TRUE)
+train_baked <- bake(rec_prep, new_data = train_data)
+test_baked  <- bake(rec_prep, new_data = test_data)
+colnames(train_baked)
+```
+
+```{r, cache=TRUE, include=FALSE}
+# IMPORTANT: use train_baked here, not train_data
+# Final train/test data
+train_reduced <- train_baked |>
+  dplyr::select(decision, dplyr::all_of(nz_features_clean))
+
+test_reduced <- test_baked |>
+  dplyr::select(decision, dplyr::all_of(nz_features_clean))
+```
+
+# Model Selection 
+
+- We choose to use a random forest to as our predictive model. 
+  1) In the Random forest we took our train data and used the decision variable to be the outcome we are predicting over & all of the LASSO selected features of the predictors. 
+  2) Used this after much trial and error of other methods and found this to perform the best overall
+  
+```{r, cache=TRUE, include=FALSE}
+# Class imbalance: ~60% punts, ~16% go-for-it, ~24% FGs. We can weight inversely proportional to prevalence:
+
+# Calculate weights
+class_counts <- 
+  table(train_reduced$decision)
+class_weights <- sum(class_counts) / (length(class_counts) * class_counts)
+
+# Fit weighted Random Forest
+rf_model22 <- randomForest(
+  decision ~ ., 
+  data = train_reduced,
+  ntree = 500,
+  importance = TRUE,
+  classwt = class_weights
+)
+
+```
+
+# Overall Accuraccy Results 
+
+- Here we ran our results through a confusion matrix to check how our model did a predicting 4th down decision. 
+
+```{r, cache=TRUE}
+# Predictions on train & test
+rf_pred_train22 <- predict(rf_model22, train_reduced)
+rf_pred_test22  <- predict(rf_model22, test_reduced)
+
+# Probabilities for insight
+rf_prob_test22 <- predict(rf_model22, test_reduced, type = "prob")
+
+# Confusion matrices
+#confusionMatrix(rf_pred_train22, train_reduced$decision)
+cm <- caret::confusionMatrix(rf_pred_test22,  test_reduced$decision)
+
+cm_mat <- cm$table
+
+kable(cm_mat) |>
+  kable_styling(font_size = 6, latex_options = "scale_down")
+```
+
+# Accuracy Results cont. 
+
+- Here is a graph we made to track where our model was struggling 
+  - In the graphs it is broken down into our 3 main decisions `go for it`, `field goal`, or `punt` 
+  - With all the different distances to go until the next 1st down as the `y-axis`
+  - Along with our `x-axis` being broken down into different field positions teams are commonly in 
+  
+```{r,  cache=TRUE}
+test_reduced <- test_reduced |>
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long")))
+
+train_reduced <- train_reduced |>
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long")))                      
+                
+
+
+# Combine predictions and actual
+test_results <- test_reduced |>
+  mutate(
+    pred = rf_pred_test22
+  )
+```
+
+# Accuracy Results cont. 
+
+```{r, cache = TRUE}
+# Plot yardline_zone vs ydstogo_bin colored by misclassification
+ggplot(test_results, aes(x = yardline_zone, y = ydstogo_bin, fill = pred == decision)) +
+  geom_tile(color = "white") +
+  scale_fill_manual(values = c("red", "green"), labels = c("Wrong","Correct")) +
+  facet_wrap(~decision) +
+  labs(title = "Misclassifications by Yardline Zone & Yards to Go",
+       x = "Yardline Zone", y = "Yards to Go Bin", fill = "Prediction Correct") +
+  theme(
+    axis.text.x = element_text(
+      angle = 90,   # vertical
+      vjust = 0.5,
+      hjust = 1
+    )
+  )
+
+```
+
+# Testing Models to find best performing one 
+
+- Finally to make sure we couldn't get better results with less predictors in our model, we made an accuracy chart for different models. 
+  - The `top3` model only takes in the first 3 predictors from the model 
+  - The `top6` only takes in the first 6 predictors 
+  - The `top9` takes in the first 9 predictors 
+  - The `topall` is all the LASSO selected features 
+  
+# Testing Models to find best performing one 
+
+```{r, cache=TRUE}
+# models 
+rf_spec <- rand_forest(
+  trees = 500
+) |>
+  set_mode("classification") |>
+  set_engine("randomForest")
+
+## use subsets of the LASSO-selected features
+top3   <- nz_features_clean[1:3]
+top6   <- nz_features_clean[1:6]
+top9   <- nz_features_clean[1:9]
+topall <- nz_features_clean          # all LASSO-selected features
+
+## recipes (analogous to linear/quadratic/cubic/quartic)
+rec_top3 <- recipe(decision ~ yardline_100 + ydstogo + log_ydstogo, data = train_reduced) 
+
+rec_top6 <- recipe(decision ~ yardline_100 + ydstogo + log_ydstogo + own_half + season + qtr, data = train_reduced) 
+
+rec_top9 <- recipe(decision ~ yardline_100 + ydstogo + log_ydstogo + own_half + season + qtr + game_seconds_remaining + half_seconds_remaining + yardline_zone, data = train_reduced) 
+
+rec_all <- recipe(decision ~ ., data = train_reduced) 
+
+## fit models
+m0 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_top3) |> fit(train_reduced)
+m1 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_top6) |> fit(train_reduced)
+m2 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_top9) |> fit(train_reduced)
+m3 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_all)  |> fit(train_reduced)
+
+## estimate test accuracy (analog of get_rmse)
+get_accuracy <- function(model) {
+  augment(model, new_data = test_reduced) |>
+    accuracy(truth = decision, estimate = .pred_class) |>
+    pull(.estimate)
+}
+
+data.frame(model = c("top3", "top6", "top9", "all_lasso"),
+           accuracy = c(get_accuracy(m0),
+                        get_accuracy(m1),
+                        get_accuracy(m2),
+                        get_accuracy(m3))) |>
+  knitr::kable()
+
+```
+
+```{r, cache=TRUE, include=FALSE}
+## assumes:
+## - rec_prep          (prepped recipe from original data)
+## - nz_features_clean (LASSO-selected feature names)
+## - rf_model22        (randomForest model fit on train_reduced)
+
+predict_4thdown <- function(situation_df) {
+  # 1) bake new situation with the original recipe (creates dummies)
+  baked_new <- bake(rec_prep, new_data = situation_df)
+  
+  # 2) keep only the LASSO-selected features in the right order
+  new_reduced <- baked_new |>
+    dplyr::select(dplyr::all_of(nz_features_clean))
+  
+  # 3) predict class + probabilities using randomForest
+  class_pred <- predict(rf_model22, newdata = new_reduced, type = "response")
+  prob_pred  <- predict(rf_model22, newdata = new_reduced, type = "prob")
+  
+  prob_tbl <- as_tibble(prob_pred)
+  
+  tibble(
+    predicted_decision = class_pred,
+    prob_field_goal    = prob_tbl$field_goal,
+    prob_go_for_it     = prob_tbl$go_for_it,
+    prob_punt          = prob_tbl$punt
+  )
+}
+
+```
+
+- We can see that our increase in accuracy score perfectly correlates with the increase of predictors in our model. Showing us that the 20 LASSO selected predictors are indeed the best/most predictive for what we are looking for. 
+
+# Model Work: Pass vs Run (Within Go-For-It)
+
+- Built on the previous 4th-down decision model  
+  - Focus only on plays where teams actually **went for it**
+
+- Filtered data to true go-for-it situations  
+  - Play type must be clearly **run** or **pass**  
+  - Created new outcome variable: `go_type` (run vs pass)
+
+- Used the same core game-context features  
+  - Score differential, yards-to-go (and log-scale)  
+  - Field position & own-half indicator  
+  - Quarter and time remaining  
+  - Stadium conditions: roof & surface
+
+- Modeling approach  
+  - Random forest classifier (500 trees) trained using `tidymodels`  
+  - Train on seasons <= 2019; test on 2021+ (skipping 2020)
+  
+# Model Work: Pass vs Run (Within Go-For-It)
+
+- Purpose of this model  
+  - When “Go-For-It” is recommended, provide a **data-driven play type**:  
+    **Should the team run or pass?**
+    
+
+
+```{r, cache = TRUE, include = FALSE}
+###########################################
+# Go-for-it Play Type Model: Pass vs Run #
+###########################################
+
+# 1) Start from the same 4th-down data and keep only go-for-it plays (run/pass)
+
+go_raw <- fourth1 %>%
+  filter(
+    decision == "go_for_it",
+    play_type %in% c("run", "pass"),
+    !is.na(posteam)
+  ) %>%
+  mutate(
+    go_type = ifelse(play_type == "pass", "pass", "run")
+  )
+
+# 2) Engineer the SAME features as in fourth_model so the situation_df is compatible
+
+go_model <- go_raw %>%
+  mutate(
+    score_diff  = posteam_score - defteam_score,
+    own_half    = ifelse(yardline_100 > 50, 1, 0),
+    log_ydstogo = log1p(ydstogo)
+  ) %>%
+  select(
+    go_type,
+    yardline_100,
+    ydstogo,
+    log_ydstogo,
+    score_diff,
+    qtr,
+    game_seconds_remaining,
+    half_seconds_remaining,
+    own_half,
+    season,
+    week,
+    roof,
+    surface
+  ) %>%
+  drop_na() %>%
+  mutate(
+    across(where(is.character), factor),
+    go_type = factor(go_type)
+  )
+
+# Quick sanity check
+table(go_model$go_type)
+```
+
+```{r, cache = TRUE, include = FALSE}
+# 3) Train/test split by season (train on older seasons, test on newer)
+
+go_train <- go_model %>%
+  filter(season <= 2019)
+
+go_test <- go_model %>%
+  filter(season >= 2021 & season != 2020)
+
+nrow(go_train); nrow(go_test)
+```
+
+```{r, cache = TRUE}
+# 4) Recipe: dummy categorical vars, drop zero-variance columns
+go_rec <- recipe(go_type ~ ., data = go_train) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors())
+
+# 5) RF spec for pass vs run
+go_rf_spec <- rand_forest(
+  trees = 500
+) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# 6) Workflow and fit on training data
+go_rf_wf <- workflow() %>%
+  add_recipe(go_rec) %>%
+  add_model(go_rf_spec)
+
+go_rf_fit <- go_rf_wf %>%
+  fit(data = go_train)
+
+# 7) Evaluate on held-out seasons
+go_rf_aug <- augment(go_rf_fit, new_data = go_test)
+
+go_rf_metrics <- go_rf_aug %>%
+  metrics(truth = go_type, estimate = .pred_class) %>%
+  filter(.metric == "accuracy")
+
+go_rf_metrics %>%
+  knitr::kable()
+```
+
+```{r, cache = TRUE, include = FALSE}
+###############################
+# Pass vs Run Advisor Helper #
+###############################
+
+predict_go_type <- function(situation_df) {
+  # Use the go_rf_fit workflow directly on the new situation
+  aug <- augment(go_rf_fit, new_data = situation_df)
+  
+  tibble(
+    predicted_go_type = aug$.pred_class,
+    prob_run  = aug$.pred_run,
+    prob_pass = aug$.pred_pass
+  )
+}
+
+levels(go_model$go_type)
+
+```
+
+# Prediction model
+
+- Here is the model we used to predict what to do on 4th down
+- Building off of the `predict_4thdown` model, we added our `advise_4thdown` model to determine go-for-it scenarios
+- We are able to test our models on real plays that happened over the last few seasons
+
+```{r, cache = TRUE, include = FALSE}
+###################################
+# Extended 4th Down Play Advisor #
+###################################
+
+advise_4thdown <- function(situation_df) {
+  
+  # 1) Use Sam & Andy's advisor to get punt / FG / go_for_it
+  base_pred <- predict_4thdown(situation_df)
+  
+  # If the model does NOT recommend going for it, just return that
+  if (base_pred$predicted_decision[1] != "go_for_it") {
+    return(
+      base_pred %>%
+        mutate(
+          recommended_play = predicted_decision
+        )
+    )
+  }
+  
+  # 2) Otherwise, we're in a go_for_it situation: add pass vs run
+  go_pred <- predict_go_type(situation_df)
+  
+  base_pred %>%
+    mutate(
+      predicted_go_type = go_pred$predicted_go_type,
+      prob_run          = go_pred$prob_run,
+      prob_pass         = go_pred$prob_pass,
+      recommended_play  = paste("go_for_it -", go_pred$predicted_go_type)
+    )
+}
+
+
+```
+
+# Results on Current NFL season 
+
+- To test if our model works we choose 5 different 4th down plays that have happened in this current(2025) season
+- We tried to focus on including specific plays in areas where our model is strongest and weakest to highlight the uses
+
+
+# Commanders v Packers (Our results)
+
+- For this play, it is week 2 of the season in the 4th quarter with 12:00 min on the clock. The Commanders have the ball down 11 points and are on the opponents 34 yard with 13 yards to go until the 1st down. For this situation, our model predicts that roughly 73% of coach's would kick a field goal here, 11% would go for it, and 15% would punt. Here the Commanders elect to kick the field goal which our model agrees with, despite the team being down by 11 and the goal posts being 52 yards out.
+
+
+```{r, cache=TRUE}
+WAS_GB_wk2 <- tibble(
+  yardline_100           = 34,
+  ydstogo                = 13,
+  score_diff             = -11,
+  qtr                    = 4,
+  game_seconds_remaining = 1620,
+  half_seconds_remaining = 720,
+  own_half               = ifelse(yardline_100 > 50, 1, 0),
+  season                 = 2025,
+  week                   = 2,
+  roof                   = factor("outdoors", levels = levels(fourth_model$roof)),
+  surface                = factor("grass",    levels = levels(fourth_model$surface)),
+  log_ydstogo            = log1p(ydstogo)  
+)
+
+kable(advise_4thdown(WAS_GB_wk2), digits = 3) |>
+  kable_styling(font_size = 6,
+                latex_options = "scale_down",
+                full_width = FALSE) 
+```
+
+# Commanders v Packers (Actual results)
+
+- For play_id 2682 start stream at (1:46:40)
+  - https://www.amazon.com/gp/video/detail/B0F8KWZG8C/ref=atv_dp_amz_c_n9jOf6_6_13?jic=8%7CEgNhbGw%3D
+  
+# 49ers v Rams (Our results)
+
+- For this play, it is week 5 of the season in overtime with 3:22 min on the clock. The Rams have the ball down 3 points and are on the opponents 1 yard with 1 yards to go until the 1st down. Our models says 49% of coach's would kick a field goal here, 50.4% would go for it, and 1% would punt. The Rams here elect to go for it and run the ball rather than kicking the FG to tie the game. (*they go on to lose 26-23)
+
+
+```{r, cache=TRUE}
+SF_LA_wk5 <- tibble(
+  yardline_100           = 11,
+  ydstogo                = 1,
+  score_diff             = -3,
+  qtr                    = 4,
+  game_seconds_remaining = 221,
+  half_seconds_remaining = 221,
+  own_half               = ifelse(yardline_100 > 50, 1, 0),
+  season                 = 2025,
+  week                   = 5,
+  roof                   = factor("outdoors", levels = levels(fourth_model$roof)),
+  surface                = factor("grass",    levels = levels(fourth_model$surface)),
+  log_ydstogo            = log1p(ydstogo)  
+)
+
+# Decision probs
+advise_4thdown(SF_LA_wk5) |>
+  dplyr::select(0:4) |>
+  kable(digits = 3) |>
+  kable_styling(font_size = 7, latex_options = "scale_down")
+
+# Pass/run probs (second line on the slide)
+advise_4thdown(SF_LA_wk5) |>
+  dplyr::select(5:7) |>
+  kable(digits = 3) |>
+  kable_styling(font_size = 7, latex_options = "scale_down")
+```
+
+# 49ers v Rams (Actual results)
+
+- For play_id 4950 start stream at (3:24:10)
+  - https://www.amazon.com/gp/video/detail/B0DWTQMTMP/ref=atv_dp_amz_c_n9jOf6_6_10?jic=8%7CEgNhbGw%3D
+  
+# Lions v Cowboys (Our results)
+
+- For this play, it is week 14 of the season in the 2nd quarter with 0:55 sec on the clock. The Cowboys have the ball down 11 points and are on the opponents 37 yard with 4 yards to go until the 1st down. Our model says 57% of coach's would go for it here, 25% would punt it, and  only 17% would kick the field goal. 
+
+
+```{r, cache = TRUE}
+DET_DAL_wk14 <- tibble(
+  yardline_100           = 37,
+  ydstogo                = 4,
+  score_diff             = -11,
+  qtr                    = 2,
+  game_seconds_remaining = 1855,
+  half_seconds_remaining = 55,
+  own_half               = ifelse(yardline_100 > 50, 1, 0),
+  season                 = 2025,
+  week                   = 14,
+  roof                   = factor("outdoors", levels = levels(fourth_model$roof)),
+  surface                = factor("grass",    levels = levels(fourth_model$surface)),
+  log_ydstogo            = log1p(ydstogo)  
+)
+
+# Decision probs
+advise_4thdown(DET_DAL_wk14) |>
+  dplyr::select(0:4) |>
+  kable(digits = 3) |>
+  kable_styling(font_size = 7, latex_options = "scale_down")
+
+# Pass/run probs (second line on the slide)
+advise_4thdown(DET_DAL_wk14) |>
+  dplyr::select(5:7) |>
+  kable(digits = 3) |>
+  kable_styling(font_size = 7, latex_options = "scale_down")
+
+```
+
+# Lions v Cowboys (Actual results)
+
+
+- For play_id 2163 start stream at (1:25:50) : Dallas here elects to go for the field goal
+  - https://www.amazon.com/gp/video/detail/B0F9GZ984M/ref=atv_dp_amz_c_n9jOf6_6_1?jic=8%7CEgNhbGw%3D
+  
+# Broncos v Raiders (Our results)
+
+-  For this play, it is week 10 of the season in the 2nd quarter with 9:22 min on the clock. The Raiders have the ball up 7 points and are on the opponents 31 yard with 2 yards to go until the 1st down. Our models says 62% of coach's would kick a field goal here, 31% would go for it, and only 6% would punt. 
+
+
+```{r, cache = TRUE}
+DEN_LV_wk10 <- tibble(
+  yardline_100           = 31,
+  ydstogo                = 2,
+  score_diff             = 7,
+  qtr                    = 2,
+  game_seconds_remaining = 553,
+  half_seconds_remaining = 2353,
+  own_half               = ifelse(yardline_100 > 50, 1, 0),
+  season                 = 2025,
+  week                   = 10,
+  roof                   = factor("outdoors", levels = levels(fourth_model$roof)),
+  surface                = factor("grass",    levels = levels(fourth_model$surface)),
+  log_ydstogo            = log1p(ydstogo)  
+)
+
+kable(advise_4thdown(DEN_LV_wk10), digits = 3)  |>
+  kable_styling(font_size = 6,
+                latex_options = "scale_down",
+                full_width = FALSE)
+```
+
+# Broncos v Raiders (Actual results)
+
+- For play_id 1316 start stream at (51:15) : The Raiders here elect to go for it when they were up for 7, which results in a TD(*that was overturned by a off PI, w/ TD off the board they elect to punt it)
+  - https://www.amazon.com/gp/video/detail/B0F83DDLSD/ref=atv_dp_amz_c_n9jOf6_6_5?jic=8%7CEgNhbGw%3D
+  
+# Ravens v Dolphins (Our results)
+
+- For this play, it is week 9 of the season in the 1st quarter with 8:50 sec on the clock. The Ravens have the ball down 3 points and are on the opponents 2 yard line with 2 yards to go until the 1st down. Our model says 72% of coach's would kick a field goal here, 27% would go for it, and less than 1% would punt. 
+
+
+```{r, cache=TRUE}
+BAL_MIA_wk9 <- tibble(
+  yardline_100           = 2,
+  ydstogo                = 2,
+  score_diff             = -3,
+  qtr                    = 1,
+  game_seconds_remaining = 3210,
+  half_seconds_remaining = 1410,
+  own_half               = ifelse(yardline_100 > 50, 1, 0),
+  season                 = 2025,
+  week                   = 9,
+  roof                   = factor("outdoors", levels = levels(fourth_model$roof)),
+  surface                = factor("grass",    levels = levels(fourth_model$surface)),
+  log_ydstogo            = log1p(ydstogo)  
+)
+
+kable(advise_4thdown(BAL_MIA_wk9), digits = 3)  |>
+  kable_styling(font_size = 6,
+                latex_options = "scale_down",
+                full_width = FALSE)
+```
+
+# Ravens v Dolphins(Actual results)
+
+- For play_id 455 start stream at (17:50) : The Ravens here elect to go for it when they were down by 3, which results in a TD
+  - https://www.amazon.com/gp/video/detail/B0F195LTV8/ref=atv_dp_amz_c_n9jOf6_6_6?jic=8%7CEgNhbGw%3D
+
+# Summary 
+
+## Takeaways 
+
+- Trained across 20 years, tested on 4 years of data. 
+- Decided on a Random Forest which yielded roughly 88% accuracy.
+- High accuracy on punt and kick play calls, lower on go-for-it situations.
+
+## Discussion
+
+- 4th down advisor maintained 4th down play call model and extended it.
+- 82% win/pass classifying accuracy in go-for-it situations. 
+- Despite many elements that factor into 4th down play calling, our culmination of two models into an advisor was an overall success.
+ 
+
+# Sources
+
+- Baldwin, Ben; Carl, Sebastian; & Yurko, Ronald (2021).
+nflfastR: Efficient Scraping and Aggregation of NFL Play-by-Play Data.
+Journal of Open Source Software, 6(62), 3262. DOI: 10.21105/joss.03262.
+
+- Amazon Prime Video (2022).
+NFL game broadcast clips used for examples.
+Retrieved from primevideo.com.
+
+
+# Thank you
+
+- Thank you for listening and we hope you enjoyed our presentation!
+
+
+
+

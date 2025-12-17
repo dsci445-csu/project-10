@@ -140,14 +140,188 @@ Optional: Extend to predicting play type in go for it situations with a seperate
 New Model Run - Andrew
 ###
 
+# RF
+
+```{r}
+set.seed(451)
+train_index <- createDataPartition(fourth_model_clean$decision, p = 0.8, list = FALSE)
+
+train1 <- fourth_model_clean[train_index, ]
+test1  <- fourth_model_clean[-train_index, ]
+
+```
+
+```{r}
+rf_model1 <- randomForest(
+  decision ~ ., 
+  data = train1,
+  ntree = 500,
+  importance = TRUE
+)
+
+```
+```{r}
+rf_pred_train1 <- predict(rf_model1, train1)
+rf_pred_test1  <- predict(rf_model1, test1)
+
+confusionMatrix(rf_pred_train1, train1$decision)
+confusionMatrix(rf_pred_test1,  test1$decision)
+
+importance(rf_model1)
+varImpPlot(rf_model1)
+
+```
+
+# Now RF but training and testing with different years (overall goal)
+
+```{r}
+# Split first using original dataset
+train2 <- fourth_model %>%
+  filter(season <= 2016)
+
+test2 <- fourth_model %>%
+  filter(season >= 2017 & season <= 2021 & season != 2020)
+
+# Clean features after split
+train2 <- train2 %>%
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long"))
+  ) %>%
+  select(-season, -week, -log_ydstogo, -yardline_100, -ydstogo, -roof, -qtr, -half_seconds_remaining, -surface)
+
+
+test2 <- test2 %>%
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long"))
+  ) %>%
+  select(-season, -week, -log_ydstogo, -yardline_100, -ydstogo, -roof, -qtr, -half_seconds_remaining, -surface)
 
 
 
+rf_model2 <- randomForest(
+  decision ~ ., 
+  data = train2,
+  ntree = 500,
+  importance = TRUE
+)
+
+rf_pred_train2 <- predict(rf_model2, train2)
+rf_pred_test2  <- predict(rf_model2, test2)
+
+confusionMatrix(rf_pred_train2, train2$decision)
+confusionMatrix(rf_pred_test2,  test2$decision)
+
+importance(rf_model2)
+varImpPlot(rf_model2)
+
+```
+
+```{r}
+table(train2$decision)
+head(train2)
+
+```
+
+# Tuning Current RF
+
+#######################
+## BEST RF MODEL YET ##
+#######################
+
+```{r}
+# Train: seasons <= 2016
+train2 <- fourth_model %>% filter(season <= 2016)
+
+# Test: seasons 2017-2021, excluding 2020
+test2 <- fourth_model %>% filter(season >= 2017 & season <= 2021 & season != 2020)
+
+# Feature engineering: keep qtr, yardline_zone, ydstogo_bin
+train2 <- train2 %>%
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long"))
+  ) %>%
+  select(-season, -week, -log_ydstogo, -yardline_100, -ydstogo, -roof,
+         -half_seconds_remaining, -surface)
+
+test2 <- test2 %>%
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long"))
+  ) %>%
+  select(-season, -week, -log_ydstogo, -yardline_100, -ydstogo, -roof,
+         -half_seconds_remaining, -surface)
+
+```
+
+```{r}
+# Class imbalance: ~60% punts, ~16% go-for-it, ~24% FGs. We can weight inversely proportional to prevalence:
+
+# Calculate weights
+class_counts <- table(train2$decision)
+class_weights <- sum(class_counts) / (length(class_counts) * class_counts)
+
+# Fit weighted Random Forest
+rf_model2 <- randomForest(
+  decision ~ ., 
+  data = train2,
+  ntree = 500,
+  importance = TRUE,
+  classwt = class_weights
+)
 
 
+```
 
+```{r}
+# Predictions on train & test
+rf_pred_train2 <- predict(rf_model2, train2)
+rf_pred_test2  <- predict(rf_model2, test2)
 
+# Probabilities for insight
+rf_prob_test2 <- predict(rf_model2, test2, type = "prob")
 
+# Confusion matrices
+confusionMatrix(rf_pred_train2, train2$decision)
+confusionMatrix(rf_pred_test2,  test2$decision)
 
+```
 
+```{r}
+# Combine predictions and actual
+test_results <- test2 %>%
+  mutate(
+    pred = rf_pred_test2
+  )
 
+# Plot yardline_zone vs ydstogo_bin colored by misclassification
+ggplot(test_results, aes(x = yardline_zone, y = ydstogo_bin, fill = pred == decision)) +
+  geom_tile(color = "white") +
+  scale_fill_manual(values = c("red", "green"), labels = c("Wrong","Correct")) +
+  facet_wrap(~decision) +
+  labs(title = "Misclassifications by Yardline Zone & Yards to Go",
+       x = "Yardline Zone", y = "Yards to Go Bin", fill = "Prediction Correct")
+
+```

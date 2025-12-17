@@ -1,0 +1,367 @@
+---
+title: "Sams_Stuff"
+output: html_document
+---
+
+```{r}
+library(nflfastR)
+library(tidyverse)
+library(readr)
+library(rpart)
+library(ggplot2)
+library(janitor)
+library(tidymodels)
+library(randomForest)
+library(xgboost)
+library(vip)
+library(caret)
+library(knitr)
+library(dplyr)
+```
+
+
+# Sam work
+
+```{r}
+# Every 4th down play between 2014-2023
+fourth <- pbp %>%
+  filter(down == 4,
+         play_type %in% c("run","pass","punt","field_goal")) %>%
+  mutate(
+    decision = case_when(
+      play_type %in% c("run","pass") ~ "go_for_it",
+      play_type == "punt" ~ "punt",
+      play_type == "field_goal" ~ "field_goal"
+    )
+  )
+```
+
+
+```{r}
+model_data <- fourth %>%
+  select(game_id,
+         decision,
+         drive,
+         drive_start_yard_line,
+         drive_end_transition,
+         time,
+         yardline_100,
+         ydstogo,
+         score_differential,
+         qtr,
+         half_seconds_remaining,
+         wp, 
+         down,
+         goal_to_go)
+model_data
+```
+
+```{r}
+model_data <- model_data %>%
+  mutate(
+    go = ifelse(decision == "go_for_it", 1, 0)
+  )
+```
+
+---------------------------------------------------------
+
+```{r}
+pbp <- load_pbp(2014:2023) |> clean_names()
+
+fourth <- pbp |> 
+  filter(down == 4, !is.na(posteam)) |> 
+  mutate(
+    decision = case_when(
+      play_type == "punt" ~ "punt",
+      play_type == "field_goal" ~ "field_goal",
+      play_type %in% c("run","pass") ~ "go_for_it",
+      TRUE ~ NA_character_
+    )
+  ) |> 
+  filter(!is.na(decision))
+
+```
+
+
+
+```{r}
+
+```
+
+
+```{r}
+library(tidymodels)
+
+# Test/Train by years
+train_data <- fourth_model |> filter(season <= 2019)
+test_data  <- fourth_model |> filter(season >= 2021 & season != 2020 )
+
+set.seed(123)
+
+# Feature selection(LASSO) finds which var is important & reduces overfitting
+rec <- recipe(decision ~ ., data = train_data) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_predictors())
+
+lasso_spec <- multinom_reg(
+  penalty = tune(),   # λ
+  mixture = 1         # 1 = pure lasso
+) |>
+  set_engine("glmnet")
+
+wf_lasso <- workflow() |>
+  add_recipe(rec) |>
+  add_model(lasso_spec)
+
+set.seed(123)
+folds <- vfold_cv(train_data, v = 5)
+
+grid <- tibble(penalty = 10^seq(-4, 1, length.out = 30))
+
+lasso_res <- tune_grid(
+  wf_lasso,
+  resamples = folds,
+  grid = grid,
+  metrics = metric_set(accuracy, mn_log_loss)
+)
+
+best_lasso <- select_best(lasso_res, metric = "mn_log_loss")
+
+lasso_fit <- finalize_workflow(wf_lasso, best_lasso) |>
+  fit(data = train_data)
+
+```
+
+
+```{r}
+# Extracting the selected features 
+lasso_glmnet <- lasso_fit %>%
+  extract_fit_parsnip() %>%
+  pluck("fit")
+
+# get coefficients at best lambda
+coef_list <- glmnet::coef.glmnet(lasso_glmnet, s = best_lasso$penalty)
+
+# each element in coef_list is a class (field_goal, go_for_it, punt)
+# Find predictors that are nonzero for at least one class:
+nz_features <- unique(unlist(lapply(coef_list, function(m) {
+  rownames(m)[as.vector(m != 0)]
+})))
+
+# nz_features are the LASSO selected features 
+nz_features <- setdiff(nz_features, "(Intercept)")
+```
+
+```{r}
+# Removes outcome from list
+nz_features_clean <- setdiff(nz_features, c("(Intercept)", "decision"))
+nz_features_clean
+```
+
+```{r}
+rec_prep <- prep(rec, training = train_data, retain = TRUE)
+train_baked <- bake(rec_prep, new_data = train_data)
+test_baked  <- bake(rec_prep, new_data = test_data)
+colnames(train_baked)
+```
+
+```{r}
+# IMPORTANT: use train_baked here, not train_data
+train_reduced <- train_baked |>
+  dplyr::select(decision, dplyr::all_of(nz_features_clean))
+
+test_reduced <- test_baked |>
+  dplyr::select(decision, dplyr::all_of(nz_features_clean))
+```
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Best RF for dataset
+```{r}
+# Class imbalance: ~60% punts, ~16% go-for-it, ~24% FGs. We can weight inversely proportional to prevalence:
+
+# Calculate weights
+class_counts <- table(train_reduced$decision)
+class_weights <- sum(class_counts) / (length(class_counts) * class_counts)
+
+# Fit weighted Random Forest
+rf_model22 <- randomForest(
+  decision ~ ., 
+  data = train_reduced,
+  ntree = 500,
+  importance = TRUE,
+  classwt = class_weights
+)
+
+```
+
+# Overall accuraccy results 
+```{r}
+# Predictions on train & test
+rf_pred_train22 <- predict(rf_model22, train_reduced)
+rf_pred_test22  <- predict(rf_model22, test_reduced)
+
+# Probabilities for insight
+rf_prob_test22 <- predict(rf_model22, test_reduced, type = "prob")
+
+# Confusion matrices
+confusionMatrix(rf_pred_train22, train_reduced$decision)
+confusionMatrix(rf_pred_test22,  test_reduced$decision)
+
+```
+
+
+# Plot showing model accuraccy 
+```{r}
+test_reduced <- test_reduced %>%
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long")))
+
+train_reduced <- train_reduced %>%
+  mutate(
+    yardline_zone = case_when(
+      yardline_100 <= 20 ~ "red_zone_own",
+      yardline_100 <= 80 ~ "mid_field",
+      TRUE ~ "red_zone_opponent"
+    ),
+    ydstogo_bin = cut(ydstogo, breaks = c(0,3,6,10,100), 
+                      labels = c("short","medium","long","very_long")))                      
+                
+
+
+# Combine predictions and actual
+test_results <- test_reduced %>%
+  mutate(
+    pred = rf_pred_test22
+  )
+
+# Plot yardline_zone vs ydstogo_bin colored by misclassification
+ggplot(test_results, aes(x = yardline_zone, y = ydstogo_bin, fill = pred == decision)) +
+  geom_tile(color = "white") +
+  scale_fill_manual(values = c("red", "green"), labels = c("Wrong","Correct")) +
+  facet_wrap(~decision) +
+  labs(title = "Misclassifications by Yardline Zone & Yards to Go",
+       x = "Yardline Zone", y = "Yards to Go Bin", fill = "Prediction Correct")
+
+```
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+## testing diff models to find best preforming one 
+```{r}
+# models 
+rf_spec <- rand_forest(
+  trees = 500
+) |>
+  set_mode("classification") |>
+  set_engine("randomForest")
+
+## use subsets of the LASSO-selected features
+top3   <- nz_features_clean[1:3]
+top6   <- nz_features_clean[1:6]
+top9   <- nz_features_clean[1:9]
+topall <- nz_features_clean          # all LASSO-selected features
+
+## recipes (analogous to linear/quadratic/cubic/quartic)
+rec_top3 <- recipe(decision ~ yardline_100 + ydstogo + log_ydstogo, data = train_reduced) 
+
+rec_top6 <- recipe(decision ~ yardline_100 + ydstogo + log_ydstogo + own_half + season + qtr, data = train_reduced) 
+
+rec_top9 <- recipe(decision ~ yardline_100 + ydstogo + log_ydstogo + own_half + season + qtr + game_seconds_remaining + half_seconds_remaining + yardline_zone, data = train_reduced) 
+
+rec_all <- recipe(decision ~ ., data = train_reduced) 
+
+## fit models
+m0 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_top3) |> fit(train_reduced)
+m1 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_top6) |> fit(train_reduced)
+m2 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_top9) |> fit(train_reduced)
+m3 <- workflow() |> add_model(rf_spec) |> add_recipe(rec_all)  |> fit(train_reduced)
+
+## estimate test accuracy (analog of get_rmse)
+get_accuracy <- function(model) {
+  augment(model, new_data = test_reduced) |>
+    accuracy(truth = decision, estimate = .pred_class) |>
+    pull(.estimate)
+}
+
+data.frame(model = c("top3", "top6", "top9", "all_lasso"),
+           accuracy = c(get_accuracy(m0),
+                        get_accuracy(m1),
+                        get_accuracy(m2),
+                        get_accuracy(m3))) |>
+  kable()
+
+```
+- To evaluate the effect of model complexity, we trained four random forest models using increasingly large subsets of the features selected by a LASSO multinomial regression. We compared performance on a held-out test set consisting of later seasons. Predictive accuracy increased with every feature added going from 0.824 (3 features) to 0.893 (all LASSO-selected features). No evidence of overfitting was observed—each additional LASSO feature contributed meaningful incremental predictive power. Therefore, the optimal model for predicting fourth-down decisions is the random forest trained on the full set of LASSO-selected features.
+
+-----------------------------------------------------------------------------------------------------------------------------------
+```{r}
+## basic RF spec with tunable hyperparameters
+rf_spec <- rand_forest(
+  mtry  = tune(),
+  trees = tune(),
+  min_n = tune()
+) |>
+  set_mode("classification") |>
+  set_engine("ranger")  # faster + supports tuning nicely
+  
+
+## recipe is trivial because train_reduced is already numeric/dummy
+rf_recipe <- recipe(decision ~ ., data = train_reduced)
+
+## workflow
+rf_wf <- workflow() |>
+  add_model(rf_spec) |>
+  add_recipe(rf_recipe)
+
+## 5-fold CV on training set
+set.seed(123)
+rf_folds <- vfold_cv(train_reduced, v = 5, strata = decision)
+
+## simple tuning grid
+rf_grid <- crossing(
+  mtry  = c(5, 10, 15),
+  trees = c(300, 600, 900),
+  min_n = c(5, 15, 30)
+)
+
+## tune
+rf_tune_res <- tune_grid(
+  rf_wf,
+  resamples = rf_folds,
+  grid = rf_grid,
+  metrics = metric_set(accuracy, mn_log_loss)
+)
+
+## inspect best by accuracy
+show_best(rf_tune_res, metric = "accuracy", n = 5)
+
+## pick best RF by accuracy
+best_rf <- select_best(rf_tune_res, "accuracy")
+
+## finalize workflow
+rf_final_wf <- finalize_workflow(rf_wf, best_rf)
+
+## fit on full training data
+rf_final_fit <- rf_final_wf |> fit(data = train_reduced)
+
+## evaluate on test data
+rf_test_aug <- augment(rf_final_fit, new_data = test_reduced)
+
+rf_metrics <- rf_test_aug |>
+  metrics(truth = decision, estimate = .pred_class) |>
+  filter(.metric %in% c("accuracy"))
+
+rf_logloss <- mn_log_loss(rf_test_aug, truth = decision, starts_with(".pred_"))
+
+rf_metrics
+rf_logloss
+
+```
+

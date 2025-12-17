@@ -1,0 +1,64 @@
+---
+title: "Slide helper doc"
+output: html_document
+---
+
+###############################
+# General Presentation Format #
+###############################
+
+#Title Slide:
+ - Names/Title
+
+#Problem Description Slide: 1 slide
+ - Description of data 
+ - description of problem
+ - plan
+
+#Data Cleaning and EDA Slide/s: 1-2 slides
+ - Data preprocessing process
+ - EDA thoughts and output
+ 
+#Model Work Slide: 2 slides (one each model)
+ - Model Process
+ - Model Work
+
+#Model Diagnostics slide: 1 or 2 slides
+ - Diagnostics on each model
+ - Explanation (mostly verbal)
+ 
+#Historical Examples: However needed
+ - Video/input description -> model outcome -> video outcome
+ 
+#Summary Slide: 1 slide
+ 
+#End, Questions:
+ 
+
+##############
+# Work Split #
+##############
+
+# Andrew:
+  -EDA/Cleaning slide/s
+  -Summary
+  
+
+# Ryan:
+  -Model Diagnostics (both)
+  -Problem Description
+  -Historical Examples
+
+# Sam:
+  -Historical Examples
+  -Model Work Slide -> 4th down outcome portion
+  
+# Zach:
+  -Model Work Slide -> pass/run portion
+  -Summary
+  
+#########
+# Notes #
+#########
+
+

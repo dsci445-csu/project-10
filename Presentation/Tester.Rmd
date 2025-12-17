@@ -1,0 +1,256 @@
+---
+title: "445TestPresentation"
+author: 
+  - Zach Goldstein
+  - Sam Rolsten
+  - Andrew Davenport
+  - Ryan Lang
+date: "`r Sys.Date()`"
+output:
+  beamer_presentation:
+    theme: "PaloAlto"
+    colortheme: "spruce"
+    fonttheme: "structurebold"
+---
+
+
+```{r setup, include=FALSE}
+# These knit options prevent weird warnings from showing up when knitting the presentation
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  cache = FALSE)
+
+# load in libraries here
+library(ggplot2)
+library(tidyverse)
+library(tinytex)
+```
+
+# This makes a new slide (one #)
+
+- These dashes make bullet points for the slide
+  1. You can also make further indented bulletted points
+  2. They can be numbered
+  - Or they can be dashed
+  
+> You can also use ">" to make italicized text 
+  
+# This makes a new slide (one #)
+
+## You can also make subheadings in the slides that make almost a "table"
+
+- You can use this to add more organized info
+- This is helpful to add tables/graphics that you want to title
+  
+```{r global_eda_setup, include=FALSE}
+# Load libraries
+library(dplyr)
+library(nflfastR)
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+
+
+# Load data
+tmp_pbp <- load_pbp()
+pbp_all <- load_pbp(1999:2025)
+
+
+# Build main filtered datasets
+fourth <- pbp_all %>%
+filter(down == 4, !is.na(fourth_down_converted))
+
+
+fourth_all <- pbp_all %>%
+filter(down == 4) %>%
+mutate(
+decision = case_when(
+play_type == "punt" ~ "Punt",
+play_type == "field_goal" ~ "Field Goal",
+play_type %in% c("run", "pass", "qb_kneel", "qb_spike", "scramble", "sack") ~ "Go For It",
+TRUE ~ NA_character_
+)
+) %>%
+filter(!is.na(decision))
+
+
+# Helper functions
+make_decision_share <- function(data, var, bins = 20) {
+  var_sym <- rlang::ensym(var)
+  data %>%
+    mutate(
+      var_bin = if (is.numeric(.data[[rlang::as_string(var_sym)]])) {
+        cut(.data[[rlang::as_string(var_sym)]], bins)
+        } else {
+          as.factor(.data[[rlang::as_string(var_sym)]])
+          }) %>%
+    group_by(var_bin, decision) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    group_by(var_bin) %>%
+    mutate(share = n/sum(n)) %>%
+    ungroup()
+  }
+
+
+plot_decision_share <- function(df, var) {
+  ggplot(df, aes(x = var_bin, y = share, fill = decision)) +
+    geom_col(position = "fill") +
+    labs( title = paste("4th Down Decision Percentages by", var),
+          x = var,
+          y = "Percent of Decisions",
+          fill = "Decision Type") +
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal(base_size = 18) + # larger base font
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+      axis.text.y = element_text(size = 16),
+      plot.title = element_text(size = 20))}
+
+
+# Pre-compute grouped data
+by_yl <- make_decision_share(fourth_all, yardline_100, bins = 20)
+by_dist <- make_decision_share(fourth_all, ydstogo, bins = 12)
+by_score <- make_decision_share(fourth_all, score_differential, bins = 20)
+by_q <- make_decision_share(fourth_all, qtr)
+```
+
+# Problem Description
+
+
+## Data Insight
+- Wanted to predict what NFL teams should do on 4th down
+- Can either punt, kick a field goal, or go for it
+- From those options, if they go for it, can either run or pass the ball
+- Selected the **nflfastR** data set
+- Filtered down to only 4th down plays from 1999-2025
+- Split the data into training set (1999-2019) and test set (2021-2025)
+
+
+# Data Pre-processing
+
+
+## Overview of Cleaning & Variable Selection
+- Loaded full play-by-play dataset (1999–2025) using **nflfastR**.
+- Selected key predictors:
+- Game context: season, week, quarter, game clock, score differential
+- Field context: yardline_100, ydstogo, posteam/defteam timeouts
+- Play descriptors: rush, pass, penalty, EPA/WPA, success
+- Created a unified **decision** variable:
+
+# Data Pre-processing
+
+## Additional Feature Engineering
+- Added intuitive indicators:
+  - `close_game` (within 7 points)
+  - `short_to_go` (<=  3 yards)
+  - `must_go` (trailing, < 5 minutes in 4Q)
+  
+- Binned variables to reduce model memorization:
+  - `yardline_zone`: red_zone_own / mid_field / red_zone_opponent
+  - `ydstogo_bin`: short / medium / long / very_long
+
+# Conversion Probability by Distance
+
+```{r, echo=FALSE}
+# ensure 'fourth' exists
+fourth <- pbp_all %>%
+filter(down == 4, !is.na(fourth_down_converted))
+```
+
+
+
+```{r, echo=FALSE, fig.width=5, fig.height=2}
+# jitter plot with larger axis labels and smaller output size
+ggplot(fourth, aes(
+x = ydstogo,
+y = as.numeric(fourth_down_converted),
+color = factor(fourth_down_converted, labels = c("Failed", "Converted")),
+shape = factor(fourth_down_converted, labels = c("Failed", "Converted"))
+)) +
+geom_jitter(alpha = 0.6, width = 0.3, height = 0.05, size = 3) +
+scale_y_continuous(breaks = c(0,1), labels = c("Failed", "Converted")) +
+labs(title = "4th Down Conversions by Yards to Go",
+x = "Yards to Go", y = "Outcome",
+color = "Conversion", shape = "Conversion") +
+theme_minimal()
+```
+
+- Conversion probability decreases as distance increases.
+- Noticeable separation around 4 yards.
+
+
+
+# Decision Percentage: Field Position
+
+```{r, echo=FALSE, fig.width=6, fig.height=3}
+ggplot(by_yl, aes(x = var_bin, y = share, fill = decision)) +
+  geom_col(position = "fill") +
+  labs(
+    title = "4th Down Decisions by Field Position",
+    x = NULL,  # remove x-axis label
+    y = "Percent of Decisions",
+    fill = "Decision Type"
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 18),   # smaller title
+    axis.text.x = element_blank(),          # hide x-axis labels
+    axis.text.y = element_text(size = 14)
+  )
+```
+
+- Punt dominates deep in own territory.
+- Go-for-it frequency increases past midfield.
+
+
+
+# Decision Percentage: Yards to Go
+
+```{r, echo=FALSE, fig.width=6, fig.height=3}
+ggplot(by_dist, aes(x = var_bin, y = share, fill = decision)) +
+  geom_col(position = "fill") +
+  labs(
+    title = "4th Down Decisions by Yards to Go",
+    x = NULL,
+    y = "Percent of Decisions",
+    fill = "Decision Type"
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 18),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 14)
+  )
+```
+
+- Longer distances strongly favor punts.
+- Short-yardage situations increase aggressiveness.
+
+
+
+# Decision Percentage: Score Differential
+
+```{r, echo=FALSE, fig.width=6, fig.height=3}
+ggplot(by_score, aes(x = var_bin, y = share, fill = decision)) +
+  geom_col(position = "fill") +
+  labs(
+    title = "4th Down Decisions by Score Differential",
+    x = NULL,
+    y = "Percent of Decisions",
+    fill = "Decision Type"
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 18),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 14)
+  )
+```
+
+- Trailing teams are more aggressive.
+- Leading teams favor safer options.
